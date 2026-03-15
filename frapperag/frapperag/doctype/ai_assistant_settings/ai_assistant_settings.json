@@ -1,0 +1,83 @@
+{
+ "actions": [],
+ "creation": "2026-03-15 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "is_enabled",
+  "gemini_api_key",
+  "sync_schedule",
+  "section_doctypes",
+  "allowed_doctypes",
+  "section_roles",
+  "allowed_roles"
+ ],
+ "fields": [
+  {
+   "default": "1",
+   "fieldname": "is_enabled",
+   "fieldtype": "Check",
+   "label": "Enabled"
+  },
+  {
+   "fieldname": "gemini_api_key",
+   "fieldtype": "Password",
+   "label": "Gemini API Key",
+   "reqd": 1
+  },
+  {
+   "fieldname": "sync_schedule",
+   "fieldtype": "Select",
+   "label": "Sync Schedule Preference",
+   "options": "Manual Only\nDaily\nWeekly"
+  },
+  {
+   "fieldname": "section_doctypes",
+   "fieldtype": "Section Break",
+   "label": "Allowed Document Types"
+  },
+  {
+   "fieldname": "allowed_doctypes",
+   "fieldtype": "Table",
+   "label": "Allowed Document Types",
+   "options": "RAG Allowed DocType"
+  },
+  {
+   "fieldname": "section_roles",
+   "fieldtype": "Section Break",
+   "label": "Allowed Roles"
+  },
+  {
+   "fieldname": "allowed_roles",
+   "fieldtype": "Table",
+   "label": "Allowed Roles",
+   "options": "RAG Allowed Role"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-03-15 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "FrappeRAG",
+ "name": "AI Assistant Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "RAG Admin",
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC"
+}

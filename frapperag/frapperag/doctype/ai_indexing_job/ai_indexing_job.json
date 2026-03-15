@@ -1,0 +1,171 @@
+{
+ "actions": [],
+ "autoname": "AI-INDX-.YYYY.-.MM.-.DD.-####",
+ "creation": "2026-03-15 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "doctype_to_index",
+  "status",
+  "triggered_by",
+  "column_break_1",
+  "progress_percent",
+  "section_timing",
+  "start_time",
+  "end_time",
+  "last_progress_update",
+  "section_counts",
+  "total_records",
+  "processed_records",
+  "skipped_records",
+  "failed_records",
+  "tokens_used",
+  "section_error",
+  "error_detail",
+  "section_internal",
+  "queue_job_id"
+ ],
+ "fields": [
+  {
+   "fieldname": "doctype_to_index",
+   "fieldtype": "Data",
+   "label": "Document Type",
+   "reqd": 1
+  },
+  {
+   "default": "Queued",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Queued\nRunning\nCompleted\nCompleted with Errors\nFailed\nFailed (Stalled)"
+  },
+  {
+   "fieldname": "triggered_by",
+   "fieldtype": "Link",
+   "label": "Triggered By",
+   "options": "User",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "progress_percent",
+   "fieldtype": "Percent",
+   "label": "Progress"
+  },
+  {
+   "fieldname": "section_timing",
+   "fieldtype": "Section Break",
+   "label": "Timing"
+  },
+  {
+   "fieldname": "start_time",
+   "fieldtype": "Datetime",
+   "label": "Start Time"
+  },
+  {
+   "fieldname": "end_time",
+   "fieldtype": "Datetime",
+   "label": "End Time"
+  },
+  {
+   "fieldname": "last_progress_update",
+   "fieldtype": "Datetime",
+   "label": "Last Progress Update"
+  },
+  {
+   "fieldname": "section_counts",
+   "fieldtype": "Section Break",
+   "label": "Record Counts"
+  },
+  {
+   "default": "0",
+   "fieldname": "total_records",
+   "fieldtype": "Int",
+   "label": "Total Records"
+  },
+  {
+   "default": "0",
+   "fieldname": "processed_records",
+   "fieldtype": "Int",
+   "label": "Processed"
+  },
+  {
+   "default": "0",
+   "fieldname": "skipped_records",
+   "fieldtype": "Int",
+   "label": "Skipped"
+  },
+  {
+   "default": "0",
+   "fieldname": "failed_records",
+   "fieldtype": "Int",
+   "label": "Failed"
+  },
+  {
+   "default": "0",
+   "fieldname": "tokens_used",
+   "fieldtype": "Int",
+   "label": "Tokens Used (est.)"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_error",
+   "fieldtype": "Section Break",
+   "label": "Error Detail"
+  },
+  {
+   "fieldname": "error_detail",
+   "fieldtype": "Long Text",
+   "label": "Error Detail"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_internal",
+   "fieldtype": "Section Break",
+   "label": "Internal"
+  },
+  {
+   "fieldname": "queue_job_id",
+   "fieldtype": "Data",
+   "label": "Queue Job ID",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-03-15 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "FrappeRAG",
+ "name": "AI Indexing Job",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "RAG Admin",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "RAG User"
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "track_changes": 0
+}
