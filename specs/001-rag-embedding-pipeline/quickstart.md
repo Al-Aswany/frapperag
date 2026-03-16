@@ -95,8 +95,8 @@ bench --site your-site.localhost console
 
 ```python
 import lancedb, frappe
-db = lancedb.connect(frappe.get_site_path("private/files/rag"))
-tbl = db.open_table("customer")
+db = lancedb.connect(frappe.get_site_path("private", "files", "rag"))
+tbl = db.open_table("v1_customer")
 print(f"Indexed records: {tbl.count_rows()}")
 print(tbl.to_pandas()[["id", "name", "text"]].head())
 ```

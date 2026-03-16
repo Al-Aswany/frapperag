@@ -2,7 +2,7 @@
 
 **Feature Branch**: `001-rag-embedding-pipeline`
 **Created**: 2026-03-15
-**Status**: Draft
+**Status**: Validated (2026-03-16)
 **App**: `frapperag`
 
 ---

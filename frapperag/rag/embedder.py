@@ -5,7 +5,8 @@ All heavy imports (google.generativeai, google.api_core) are inside embed_texts(
 to prevent module-level global state in multi-site bench workers (Principle II).
 """
 
-EMBEDDING_MODEL  = "models/text-embedding-004"
+EMBEDDING_MODEL  = "models/gemini-embedding-001"
+EMBEDDING_DIMS   = 768   # request 768-dim output for LanceDB schema compatibility
 BATCH_SIZE       = 20     # documents per Gemini API call
 MAX_RETRIES      = 3
 RETRY_BASE_DELAY = 2.0    # seconds; doubled on each retry for generic errors
@@ -45,6 +46,7 @@ def embed_texts(texts: list, api_key: str) -> list:
                     model=EMBEDDING_MODEL,
                     content=batch,
                     task_type="RETRIEVAL_DOCUMENT",
+                    output_dimensionality=EMBEDDING_DIMS,
                 )
                 results.extend(response["embedding"])
                 last_exc = None

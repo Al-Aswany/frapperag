@@ -25,7 +25,7 @@ returns a job ID immediately. No chat or retrieval UI is included in this phase.
 | **Language / Version** | Python 3.11+ | Enforced by constitution |
 | **Framework** | Frappe v15+, ERPNext v15+ | Enforced by constitution |
 | **Vector store** | LanceDB >= 0.8.0 (file-based, local) | `pa.list_(pa.float32(), 768)` schema |
-| **Embedding model** | Google `text-embedding-004` | 768 dims, task_type=RETRIEVAL_DOCUMENT |
+| **Embedding model** | Google `gemini-embedding-001` | 768 dims via `output_dimensionality=768`, task_type=RETRIEVAL_DOCUMENT (`text-embedding-004` not available on this API key) |
 | **Embedding SDK** | `google-generativeai` >= 0.8.0 | Direct SDK; no LangChain |
 | **LLM** | None in Phase 1 | Embeddings only; no chat |
 | **Storage path** | `frappe.get_site_path("private/files/rag/")` | Never bench-level or app-level |
@@ -338,7 +338,8 @@ def _item_text(d: dict) -> str:
 ### `rag/embedder.py` — Gemini Embedding Caller
 
 ```python
-EMBEDDING_MODEL   = "models/text-embedding-004"
+EMBEDDING_MODEL   = "models/gemini-embedding-001"
+EMBEDDING_DIMS    = 768   # request 768-dim output for LanceDB schema compatibility
 BATCH_SIZE        = 20     # documents per API call
 MAX_RETRIES       = 3
 RETRY_BASE_DELAY  = 2.0    # seconds; doubled each retry (generic errors)
@@ -377,6 +378,7 @@ def embed_texts(texts: list, api_key: str) -> list:
                     model=EMBEDDING_MODEL,
                     content=batch,
                     task_type="RETRIEVAL_DOCUMENT",
+                    output_dimensionality=EMBEDDING_DIMS,
                 )
                 results.extend(response["embedding"])
                 last_exc = None
@@ -419,7 +421,7 @@ from frapperag.rag.base_indexer import BaseIndexer
 FLAT_FIELDS_BY_DOCTYPE = {
     "Customer": [
         "name", "modified", "customer_name", "customer_type",
-        "customer_group", "territory", "email_id", "outstanding_amount",
+        "customer_group", "territory", "email_id",
     ],
     "Item": [
         "name", "modified", "item_name", "item_group", "stock_uom",
@@ -490,8 +492,8 @@ class DocIndexerTool(BaseIndexer):
             queue="long",
             timeout=7200,
             job_name=f"rag_index_{doctype.lower().replace(' ', '_')}",
-            site=frappe.local.site,        # changai pattern: explicit site
-            job_id=job_doc.name,
+            site=frappe.local.site,        # explicit site: per-client isolation
+            indexing_job_id=job_doc.name,  # NOT job_id — that is reserved by Frappe/RQ
             doctype=doctype,
             user=user,
         )
@@ -503,7 +505,8 @@ class DocIndexerTool(BaseIndexer):
         return {"job_id": job_doc.name, "status": "Queued"}
 
 
-def run_indexing_job(job_id: str, doctype: str, user: str, **kwargs):
+def run_indexing_job(indexing_job_id: str, doctype: str, user: str, **kwargs):
+    job_id = indexing_job_id  # renamed from job_id to avoid Frappe/RQ reserved kwarg
     """
     Background job entry point. Site context is already initialised by the Frappe worker.
     All heavy imports happen inside this function -- never at module level.

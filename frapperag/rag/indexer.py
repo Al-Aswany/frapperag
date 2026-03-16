@@ -15,7 +15,7 @@ from frapperag.rag.base_indexer import BaseIndexer
 FLAT_FIELDS_BY_DOCTYPE = {
     "Customer": [
         "name", "modified", "customer_name", "customer_type",
-        "customer_group", "territory", "email_id", "outstanding_amount",
+        "customer_group", "territory", "email_id",
     ],
     "Item": [
         "name", "modified", "item_name", "item_group", "stock_uom",
@@ -94,7 +94,7 @@ class DocIndexerTool(BaseIndexer):
             timeout=7200,
             job_name=f"rag_index_{doctype.lower().replace(' ', '_')}",
             site=frappe.local.site,   # changai pattern: explicit site
-            job_id=job_doc.name,
+            indexing_job_id=job_doc.name,
             doctype=doctype,
             user=user,
         )
@@ -106,7 +106,7 @@ class DocIndexerTool(BaseIndexer):
         return {"job_id": job_doc.name, "status": "Queued"}
 
 
-def run_indexing_job(job_id: str, doctype: str, user: str, **kwargs):
+def run_indexing_job(indexing_job_id: str, doctype: str, user: str, **kwargs):
     """Background job entry point. Site context is already initialised by the worker.
 
     All heavy imports happen inside this function — never at module level
@@ -119,6 +119,7 @@ def run_indexing_job(job_id: str, doctype: str, user: str, **kwargs):
     - tokens_used accumulated as chars // 4 after each embed_texts() call (FR-021)
     - Stalled detection applies to Running jobs only; Queued jobs are exempt (FR-019)
     """
+    job_id = indexing_job_id
     from frapperag.rag.lancedb_store import upsert_vectors
     from frapperag.rag.text_converter import to_text
     from frapperag.rag.embedder import embed_texts, EmbeddingError
