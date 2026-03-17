@@ -13,8 +13,14 @@ fixtures = [
 
 scheduler_events = {
     "cron": {
-        "*/30 * * * *": [
-            "frapperag.rag.indexer.mark_stalled_jobs"
+        "*/5 * * * *": [
+            "frapperag.rag.indexer.mark_stalled_jobs",
+            "frapperag.rag.chat_runner.mark_stalled_chat_messages",
         ],
     }
+}
+
+permission_query_conditions = {
+    "Chat Session": "frapperag.frapperag.doctype.chat_session.chat_session.permission_query_conditions",
+    "Chat Message": "frapperag.frapperag.doctype.chat_message.chat_message.permission_query_conditions",
 }
