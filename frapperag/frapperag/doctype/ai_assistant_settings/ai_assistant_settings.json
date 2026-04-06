@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "autoname": "",
  "creation": "2026-03-15 00:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -10,7 +11,11 @@
   "section_doctypes",
   "allowed_doctypes",
   "section_roles",
-  "allowed_roles"
+  "allowed_roles",
+  "section_sidecar",
+  "sidecar_port",
+  "section_sync_health",
+  "sync_health_html"
  ],
  "fields": [
   {
@@ -52,12 +57,34 @@
    "fieldtype": "Table",
    "label": "Allowed Roles",
    "options": "RAG Allowed Role"
+  },
+  {
+   "fieldname": "section_sidecar",
+   "fieldtype": "Section Break",
+   "label": "RAG Sidecar"
+  },
+  {
+   "default": "8100",
+   "fieldname": "sidecar_port",
+   "fieldtype": "Int",
+   "label": "Sidecar Port"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_sync_health",
+   "fieldtype": "Section Break",
+   "label": "Sync Health"
+  },
+  {
+   "fieldname": "sync_health_html",
+   "fieldtype": "HTML",
+   "label": "Sync Health"
   }
  ],
  "index_web_pages_for_search": 0,
  "issingle": 1,
  "links": [],
- "modified": "2026-03-15 00:00:00.000000",
+ "modified": "2026-04-05 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "FrappeRAG",
  "name": "AI Assistant Settings",

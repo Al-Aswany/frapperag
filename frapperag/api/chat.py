@@ -69,6 +69,7 @@ def send_message(session_id: str, content: str) -> dict:
         message_id=msg.name,      # NOT job_id — reserved by Frappe/RQ
         session_id=session_id,
         user=frappe.session.user,
+        question=content,         # pass content to avoid frappe.get_doc() in the worker
     )
     return {"message_id": msg.name, "status": "Pending"}
 

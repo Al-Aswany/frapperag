@@ -1,46 +1,31 @@
-CHAT_MODEL       = "gemini-2.5-flash"
-RATE_LIMIT_SLEEP = 60.0  # seconds; matches Phase 1 embedder pattern (FR-015)
+CHAT_MODEL = "gemini-2.5-flash"
 
 
 def generate_response(messages: list, context_records: list, api_key: str) -> dict:
     """
-    Call gemini-2.5-flash with the assembled message list.
+    Call gemini-2.5-flash via the RAG sidecar's /chat endpoint.
     Returns {"text": str, "citations": [{doctype, name}], "tokens_used": int}.
 
-    Rate-limit handling (FR-015):
-      ResourceExhausted → 60s flat sleep → one retry.
-      All other exceptions propagate immediately (non-transient failure — fail fast).
+    The Gemini SDK (google.generativeai) is initialized once in the sidecar process
+    and reused across calls — no cold-start overhead per job.
+    Workers communicate via HTTP only; no google.generativeai import here.
 
-    All google.generativeai imports inside function — no module-level state.
+    Rate-limit handling (FR-015) is performed inside the sidecar:
+      ResourceExhausted → 60s flat sleep → one retry.
+      All other errors surface as SidecarError and propagate immediately.
     """
     import time
-    import google.generativeai as genai
-    from google.api_core.exceptions import ResourceExhausted
+    import frappe
+    from frapperag.rag.sidecar_client import chat as sidecar_chat
 
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(CHAT_MODEL)
+    t0 = time.monotonic()
+    result = sidecar_chat(messages=messages, api_key=api_key, model=CHAT_MODEL)
+    frappe.logger("frapperag").info(
+        "[TIMING][chat_engine] sidecar /chat %.3fs", time.monotonic() - t0
+    )
 
-    # history = all messages except the final user turn
-    history      = messages[:-1]
-    last_message = messages[-1]["parts"][0]
-    chat         = model.start_chat(history=history)
-
-    response = None
-    for attempt in range(2):   # one retry on rate-limit only
-        try:
-            response = chat.send_message(last_message)
-            break
-        except ResourceExhausted:
-            if attempt == 0:
-                time.sleep(RATE_LIMIT_SLEEP)
-                continue
-            raise
-        # All other exceptions propagate immediately — non-transient
-
-    text        = response.text
-    tokens_used = 0
-    if hasattr(response, "usage_metadata") and response.usage_metadata:
-        tokens_used = getattr(response.usage_metadata, "total_token_count", 0)
+    text        = result["text"]
+    tokens_used = result.get("tokens_used", 0)
 
     # Build deduplicated citation list from permission-filtered context records
     seen      = set()

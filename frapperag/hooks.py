@@ -16,7 +16,19 @@ scheduler_events = {
         "*/5 * * * *": [
             "frapperag.rag.indexer.mark_stalled_jobs",
             "frapperag.rag.chat_runner.mark_stalled_chat_messages",
+            "frapperag.rag.sync_runner.mark_stalled_sync_jobs",
         ],
+    },
+    "daily": [
+        "frapperag.rag.sync_runner.prune_sync_event_log",
+    ],
+}
+
+doc_events = {
+    "*": {
+        "on_update":    "frapperag.rag.sync_hooks.on_document_save",
+        "after_rename": "frapperag.rag.sync_hooks.on_document_rename",
+        "on_trash":     "frapperag.rag.sync_hooks.on_document_trash",
     }
 }
 

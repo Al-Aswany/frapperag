@@ -113,19 +113,16 @@ def run_indexing_job(indexing_job_id: str, doctype: str, user: str, **kwargs):
     (Principle II: per-client isolation).
 
     Key implementation notes:
-    - api_key is read from AI Assistant Settings here, not passed via enqueue (FR-004)
-    - Sales Invoice uses frappe.get_doc to capture child items table
-    - Customer and Item use frappe.db.get_all with flat field lists (no child tables)
-    - tokens_used accumulated as chars // 4 after each embed_texts() call (FR-021)
-    - Stalled detection applies to Running jobs only; Queued jobs are exempt (FR-019)
+    - Embedding and vector storage go exclusively through the RAG sidecar HTTP API
+      (sidecar_client.upsert_record). Workers never import lancedb or
+      sentence_transformers directly (Constitution Principle IV).
+    - Sales Invoice uses frappe.get_doc to capture child items table.
+    - Customer and Item use frappe.db.get_all with flat field lists (no child tables).
+    - Stalled detection applies to Running jobs only; Queued jobs are exempt (FR-019).
     """
     job_id = indexing_job_id
-    from frapperag.rag.lancedb_store import upsert_vectors
     from frapperag.rag.text_converter import to_text
-    from frapperag.rag.embedder import embed_texts, EmbeddingError
-
-    # Read api_key from Settings — keeps the credential out of the Redis queue
-    api_key = frappe.get_doc("AI Assistant Settings").get_password("gemini_api_key")
+    from frapperag.rag.sidecar_client import upsert_record, SidecarError
 
     # Enforce the triggering user's permission context (Principle III)
     frappe.set_user(user)
@@ -155,8 +152,7 @@ def run_indexing_job(indexing_job_id: str, doctype: str, user: str, **kwargs):
         job.save(ignore_permissions=True)
         frappe.db.commit()
 
-        pending_docs  = []
-        pending_texts = []
+        batch_count = 0  # track records processed since last progress update
 
         for idx, rec in enumerate(name_list):
             # Per-record permission check (Principle III): skipped ≠ failed
@@ -164,6 +160,7 @@ def run_indexing_job(indexing_job_id: str, doctype: str, user: str, **kwargs):
                 doctype, doc=rec["name"], ptype="read", user=user
             ):
                 job.skipped_records += 1
+                batch_count += 1
                 continue
 
             # Full doc (with child tables) only for Sales Invoice
@@ -175,54 +172,37 @@ def run_indexing_job(indexing_job_id: str, doctype: str, user: str, **kwargs):
             text = to_text(doctype, doc_data)
             if text is None:
                 job.skipped_records += 1
+                batch_count += 1
                 continue
 
-            pending_docs.append(rec)
-            pending_texts.append(text)
+            try:
+                # Embed + upsert via sidecar — single HTTP call per record.
+                # The sidecar applies "passage: " prefix and writes to the v3_ table.
+                upsert_record(doctype, rec["name"], text)
+                job.processed_records += 1
 
-            is_last = (idx == len(name_list) - 1)
-            if len(pending_texts) >= WRITE_BATCH_SIZE or (is_last and pending_texts):
-                try:
-                    vectors = embed_texts(pending_texts, api_key)
-                    rows = [
-                        {
-                            "id":            f"{doctype}:{r['name']}",
-                            "doctype":       doctype,
-                            "name":          r["name"],
-                            "text":          t,
-                            "vector":        v,
-                            "last_modified": str(r.get("modified", "")),
-                        }
-                        for r, t, v in zip(pending_docs, pending_texts, vectors)
-                    ]
-                    upsert_vectors(doctype, rows)
-                    job.processed_records += len(rows)
-                    # FR-021: accumulate estimated token usage (chars // 4 per text)
-                    job.tokens_used += sum(len(t) // 4 for t in pending_texts)
+            except SidecarError as exc:
+                # Sidecar unreachable or returned a non-2xx — abort immediately.
+                job.status       = "Failed"
+                job.error_detail = str(exc)
+                job.end_time     = now_datetime()
+                job.save(ignore_permissions=True)
+                frappe.db.commit()
+                _publish(job, user, error=str(exc))
+                return
 
-                except EmbeddingError as exc:
-                    # Fatal: Gemini API unrecoverable — abort the job
-                    job.status       = "Failed"
-                    job.error_detail = str(exc)
-                    job.end_time     = now_datetime()
-                    job.save(ignore_permissions=True)
-                    frappe.db.commit()
-                    _publish(job, user, error=str(exc))
-                    return
+            except Exception as exc:
+                # Soft per-record failure — count as failed and continue (FR-015).
+                job.failed_records += 1
+                job.error_detail = (
+                    (job.error_detail or "")
+                    + f"\nRecord {rec['name']}: {exc}"
+                )
 
-                except Exception as exc:
-                    # Soft batch failure — count documents as failed and continue (FR-015)
-                    job.failed_records += len(pending_texts)
-                    job.error_detail = (
-                        (job.error_detail or "")
-                        + f"\nBatch error near record {idx}: {exc}"
-                    )
+            batch_count += 1
 
-                finally:
-                    pending_docs  = []
-                    pending_texts = []
-
-                # Progress update after each batch (FR-014)
+            # Progress update after each batch (FR-014)
+            if batch_count >= WRITE_BATCH_SIZE or (idx == len(name_list) - 1):
                 done  = job.processed_records + job.skipped_records + job.failed_records
                 total = job.total_records or 1
                 job.progress_percent     = round((done / total) * 100, 1)
@@ -230,6 +210,7 @@ def run_indexing_job(indexing_job_id: str, doctype: str, user: str, **kwargs):
                 job.save(ignore_permissions=True)
                 frappe.db.commit()
                 _publish(job, user)
+                batch_count = 0
 
         job.status           = "Completed with Errors" if job.failed_records else "Completed"
         job.progress_percent = 100.0

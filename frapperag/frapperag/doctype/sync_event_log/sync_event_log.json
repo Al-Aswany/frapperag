@@ -1,0 +1,76 @@
+{
+ "actions": [],
+ "autoname": "format:SYNC-LOG-{YYYYMMDD}-{####}",
+ "creation": "2026-04-05 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "doctype_name",
+  "record_name",
+  "trigger_type",
+  "outcome",
+  "error_message"
+ ],
+ "fields": [
+  {
+   "fieldname": "doctype_name",
+   "fieldtype": "Data",
+   "label": "Document Type",
+   "reqd": 1,
+   "length": 140
+  },
+  {
+   "fieldname": "record_name",
+   "fieldtype": "Data",
+   "label": "Record Name",
+   "reqd": 1,
+   "length": 140
+  },
+  {
+   "fieldname": "trigger_type",
+   "fieldtype": "Select",
+   "label": "Trigger Type",
+   "options": "Create\nUpdate\nDelete\nRename\nPurge\nRetry"
+  },
+  {
+   "fieldname": "outcome",
+   "fieldtype": "Select",
+   "label": "Outcome",
+   "options": "Queued\nRunning\nSuccess\nSkipped\nFailed"
+  },
+  {
+   "fieldname": "error_message",
+   "fieldtype": "Long Text",
+   "label": "Error Message"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "issingle": 0,
+ "links": [],
+ "modified": "2026-04-05 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "FrappeRAG",
+ "name": "Sync Event Log",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 0,
+   "read": 1,
+   "role": "RAG Admin",
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "track_changes": 0
+}
