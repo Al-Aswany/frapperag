@@ -78,6 +78,44 @@ def _require_rag_admin():
 
 
 @frappe.whitelist()
+def trigger_full_index() -> dict:
+    """Enqueue a background indexing job for every allowed DocType.
+
+    DocTypes that already have a Queued or Running job are skipped (not an error).
+    Returns a summary of queued and skipped DocTypes.
+    """
+    tool = DocIndexerTool()
+    tool.check_permission(frappe.session.user)
+
+    settings = frappe.get_doc("AI Assistant Settings")
+    if not settings.is_enabled:
+        frappe.throw(
+            "AI Assistant is disabled. Enable it in AI Assistant Settings.",
+            frappe.ValidationError,
+        )
+
+    allowed = [r.doctype_name for r in (settings.allowed_doctypes or [])]
+    if not allowed:
+        frappe.throw("No allowed DocTypes configured.", frappe.ValidationError)
+
+    queued = []
+    skipped = []
+
+    for doctype in allowed:
+        active = frappe.db.exists(
+            "AI Indexing Job",
+            {"doctype_to_index": doctype, "status": ["in", ["Queued", "Running"]]},
+        )
+        if active:
+            skipped.append(doctype)
+            continue
+        result = tool.execute({"doctype": doctype, "user": frappe.session.user})
+        queued.append({"doctype": doctype, "job_id": result["job_id"]})
+
+    return {"queued": queued, "skipped": skipped}
+
+
+@frappe.whitelist()
 def get_sync_health() -> dict:
     """Return per-DocType sync success/failure counts (last 24 h) and failed entries list."""
     _require_rag_admin()

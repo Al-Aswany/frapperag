@@ -21,10 +21,21 @@ FLAT_FIELDS_BY_DOCTYPE = {
         "name", "modified", "item_name", "item_group", "stock_uom",
         "standard_rate", "description", "is_stock_item",
     ],
+    "Item Price": [
+        "name", "modified", "item_code", "item_name", "price_list",
+        "price_list_rate", "currency", "valid_from", "valid_upto",
+    ],
+    "Supplier": [
+        "name", "modified", "supplier_name", "supplier_type",
+        "supplier_group", "country", "email_id", "disabled",
+    ],
 }
 
 # DocTypes that require frappe.get_doc (child table data needed for text conversion)
-GET_DOC_DOCTYPES = {"Sales Invoice"}
+GET_DOC_DOCTYPES = {
+    "Sales Invoice", "Purchase Invoice", "Purchase Order", "Purchase Receipt",
+    "Delivery Note", "Sales Order", "Stock Entry",
+}
 
 WRITE_BATCH_SIZE = 20   # documents per embedding API call and LanceDB write
 

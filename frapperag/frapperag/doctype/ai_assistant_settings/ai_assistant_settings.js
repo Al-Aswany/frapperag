@@ -4,9 +4,39 @@
 
 frappe.ui.form.on("AI Assistant Settings", {
     refresh(frm) {
+        frm.add_custom_button(__("Index All"), () => _trigger_full_index(frm), __("Actions"));
         _render_sync_health(frm);
     },
 });
+
+function _trigger_full_index(frm) {
+    frappe.confirm(
+        __("Queue an indexing job for every allowed DocType? Active jobs will be skipped."),
+        () => {
+            frappe.call({
+                method: "frapperag.api.indexer.trigger_full_index",
+                freeze: true,
+                freeze_message: __("Queuing indexing jobs…"),
+                callback(r) {
+                    if (r.exc) return;
+                    const { queued = [], skipped = [] } = r.message;
+                    const lines = [];
+                    if (queued.length) {
+                        lines.push(`<b>Queued (${queued.length}):</b> ${queued.map(j => frappe.utils.escape_html(j.doctype)).join(", ")}`);
+                    }
+                    if (skipped.length) {
+                        lines.push(`<b>Skipped — already active (${skipped.length}):</b> ${skipped.map(d => frappe.utils.escape_html(d)).join(", ")}`);
+                    }
+                    frappe.msgprint({
+                        title: __("Index All — Result"),
+                        message: lines.join("<br>") || __("Nothing to queue."),
+                        indicator: queued.length ? "green" : "orange",
+                    });
+                },
+            });
+        }
+    );
+}
 
 function _render_sync_health(frm) {
     const $field = frm.get_field("sync_health_html");

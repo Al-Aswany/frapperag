@@ -7,6 +7,7 @@ def after_install():
     os.makedirs(rag_path, exist_ok=True)
     _ensure_existing_lancedb_indices(rag_path)
     _ensure_sidecar_procfile_entry()
+    seed_allowed_doctypes()
     frappe.db.commit()
 
 
@@ -71,3 +72,37 @@ def _ensure_sidecar_procfile_entry() -> None:
         frappe.logger().warning(
             "frapperag after_install: could not update Procfile: %s", exc
         )
+
+
+_DEFAULT_DOCTYPES = [
+    "Sales Invoice", "Customer", "Item",
+    "Purchase Invoice", "Purchase Order", "Sales Order",
+    "Delivery Note", "Purchase Receipt", "Supplier",
+    "Item Price", "Stock Entry",
+]
+
+
+def seed_allowed_doctypes() -> None:
+    """Idempotently append missing DocTypes to the AI Assistant Settings whitelist.
+
+    Called from after_install() (fresh install) and as the after_migrate hook
+    (upgrades). Safe to run multiple times - existing rows are never duplicated.
+    """
+    if not frappe.db.exists("DocType", "AI Assistant Settings"):
+        return
+    settings = frappe.get_single("AI Assistant Settings")
+    existing = {
+        # `doctype_name` is the current child-table field; keep fallback for
+        # older rows created before the field rename.
+        getattr(row, "doctype_name", None) or getattr(row, "document_type", None)
+        for row in (settings.allowed_doctypes or [])
+    }
+    existing.discard(None)
+    changed = False
+    for dt in _DEFAULT_DOCTYPES:
+        if dt not in existing:
+            settings.append("allowed_doctypes", {"doctype_name": dt})
+            changed = True
+    if changed:
+        settings.save(ignore_permissions=True)
+        frappe.db.commit()
