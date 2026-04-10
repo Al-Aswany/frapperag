@@ -1,0 +1,56 @@
+{
+ "actions": [],
+ "creation": "2026-04-10 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "last_checked",
+  "sidecar_status",
+  "sidecar_response_time_ms"
+ ],
+ "fields": [
+  {
+   "fieldname": "last_checked",
+   "fieldtype": "Datetime",
+   "label": "Last Checked"
+  },
+  {
+   "fieldname": "sidecar_status",
+   "fieldtype": "Select",
+   "label": "Sidecar Status",
+   "options": "Reachable\nUnreachable"
+  },
+  {
+   "default": "0",
+   "fieldname": "sidecar_response_time_ms",
+   "fieldtype": "Int",
+   "label": "Sidecar Response Time (ms)"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-04-10 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "FrappeRAG",
+ "name": "RAG System Health",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "RAG Admin"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 0
+}

@@ -1,21 +1,37 @@
 import frappe
+from frappe import _
 from frappe.model.document import Document
 
 
 class AIAssistantSettings(Document):
     def validate(self):
+        # T022: strict blocking check — must run before any early return
+        if self.is_enabled and not self.gemini_api_key:
+            frappe.throw(_("Gemini API key is required when the assistant is enabled."))
+
         if not self.is_enabled:
             return
-        if not self.gemini_api_key:
-            frappe.throw(
-                "Gemini API Key is required when the AI Assistant is enabled.",
-                frappe.ValidationError,
-            )
+
+        # T023: non-blocking warning — save proceeds normally
         if not self.allowed_doctypes:
-            frappe.throw(
-                "At least one Allowed Document Type is required when the AI Assistant is enabled.",
-                frappe.ValidationError,
+            frappe.msgprint(
+                _("No DocTypes are configured for indexing — chat will return no results."),
+                indicator="orange",
+                alert=True,
             )
+
+        # T024: non-blocking port range warning
+        if (
+            hasattr(self, "sidecar_port")
+            and self.sidecar_port
+            and (self.sidecar_port < 1 or self.sidecar_port > 65535)
+        ):
+            frappe.msgprint(
+                _("Sidecar port must be between 1 and 65535."),
+                indicator="orange",
+                alert=True,
+            )
+
         if not self.allowed_roles:
             frappe.throw(
                 "At least one Allowed Role is required when the AI Assistant is enabled.",

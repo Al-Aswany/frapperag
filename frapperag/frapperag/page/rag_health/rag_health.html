@@ -1,0 +1,59 @@
+<div id="rag-health-page" style="padding: 20px;">
+
+	<!-- Toolbar -->
+	<div style="display: flex; align-items: center; margin-bottom: 20px;">
+		<button id="refresh-btn" class="btn btn-default btn-sm">Refresh</button>
+		<span class="last-updated" id="last-updated-ts"></span>
+	</div>
+
+	<!-- Section 1: Sidecar Status -->
+	<div class="section-card">
+		<h5>Sidecar Status</h5>
+		<div id="sidecar-status">
+			<span class="status-badge unknown">Loading…</span>
+		</div>
+	</div>
+
+	<!-- Section 2: Index Stats (last 24 h failures per DocType) -->
+	<div class="section-card">
+		<h5>Indexing Failures — Last 24 h</h5>
+		<table id="index-stats">
+			<thead>
+				<tr>
+					<th>DocType</th>
+					<th>Failed Jobs</th>
+				</tr>
+			</thead>
+			<tbody id="index-stats-body">
+				<tr><td colspan="2" style="color:#aaa;">Loading…</td></tr>
+			</tbody>
+		</table>
+	</div>
+
+	<!-- Section 3: Failed Jobs (recent, with failure_reason) -->
+	<div class="section-card">
+		<h5>Recent Failed Indexing Jobs</h5>
+		<table id="failed-jobs">
+			<thead>
+				<tr>
+					<th>Job ID</th>
+					<th>DocType</th>
+					<th>Failure Reason</th>
+					<th>Time</th>
+				</tr>
+			</thead>
+			<tbody id="failed-jobs-body">
+				<tr><td colspan="4" style="color:#aaa;">Loading…</td></tr>
+			</tbody>
+		</table>
+	</div>
+
+	<!-- Section 4: Gemini API Status -->
+	<div class="section-card">
+		<div id="gemini-status">
+			<h5>Gemini API Status</h5>
+			<div id="gemini-status-body" style="font-size: 13px;">Loading…</div>
+		</div>
+	</div>
+
+</div>

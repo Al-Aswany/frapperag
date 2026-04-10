@@ -13,6 +13,9 @@ fixtures = [
 ]
 
 scheduler_events = {
+    "all": [
+        "frapperag.rag.health.run_health_check",
+    ],
     "cron": {
         "*/5 * * * *": [
             "frapperag.rag.indexer.mark_stalled_jobs",

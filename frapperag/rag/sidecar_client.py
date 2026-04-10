@@ -4,9 +4,11 @@ This is the ONLY file that may be imported in Frappe worker code to communicate
 with the RAG sidecar. Workers MUST NOT import lancedb or sentence_transformers
 directly (Constitution Principle IV / Sidecar HTTP only Development Workflow rule).
 
-All functions use httpx with a 30-second timeout. They raise SidecarError on any
-HTTP error, connection failure, or timeout so callers (sync_runner.py) can mark
-the sync job as Failed without crashing the worker process.
+All public functions use httpx via _retry_call, which retries up to 3 times with
+exponential back-off (1s → 2s) on transient errors before raising
+SidecarUnavailableError. Permanent 4xx errors raise SidecarPermanentError
+immediately without retrying. Both exception classes are defined here so callers
+(indexer.py, chat_runner.py) can import and handle them explicitly.
 
 Implementation rule: httpx is imported INSIDE each function (not at module level)
 to preserve the per-function heavy-import isolation pattern used throughout the app.
@@ -16,6 +18,24 @@ to preserve the per-function heavy-import isolation pattern used throughout the 
 class SidecarError(Exception):
     """Raised when the sidecar returns a non-2xx response or is unreachable."""
     pass
+
+
+class SidecarUnavailableError(Exception):
+    """Raised when the sidecar is unreachable after all retry attempts.
+
+    Covers: connection refused, timeout, and HTTP 429/502/503 exhaustion.
+    """
+    pass
+
+
+class SidecarPermanentError(Exception):
+    """Raised when the sidecar returns a 4xx (client error) that should not be retried.
+
+    `status_code` is set to the HTTP status code when available.
+    """
+    def __init__(self, message: str, status_code: int | None = None):
+        super().__init__(message)
+        self.status_code = status_code
 
 
 def _get_port() -> int:
@@ -37,6 +57,75 @@ def _base_url(port: int | None) -> str:
     return f"http://127.0.0.1:{resolved}"
 
 
+def _retry_call(fn, *args, **kwargs):
+    """Call fn(*args, **kwargs) up to 3 times with exponential back-off.
+
+    fn must be an httpx request function (post, get, delete, …) that returns
+    an httpx.Response without raise_for_status called.
+
+    Retry policy:
+    - Transient (retried):  httpx.ConnectError, httpx.TimeoutException, HTTP 429/502/503
+    - Permanent (not retried): HTTP 4xx (except 429) → SidecarPermanentError raised immediately
+    - After 3 failed attempts: SidecarUnavailableError raised
+    - Other HTTP errors (5xx except 502/503): SidecarError raised immediately
+
+    Log format: [RETRY] attempt=N/3 delay=Xs error=<ExceptionType or HTTPNxx>
+    """
+    import time
+    import httpx
+    import frappe
+
+    max_attempts = 3
+    delay = 1
+    multiplier = 2
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            response = fn(*args, **kwargs)
+            sc = response.status_code
+
+            if sc in {429, 502, 503}:
+                # Transient HTTP status — retry with back-off
+                if attempt < max_attempts:
+                    frappe.logger("frapperag").warning(
+                        f"[RETRY] attempt={attempt}/{max_attempts} delay={delay}s error=HTTP{sc}"
+                    )
+                    time.sleep(delay)
+                    delay *= multiplier
+                    continue
+                else:
+                    raise SidecarUnavailableError(
+                        f"Sidecar unavailable after {max_attempts} retries (HTTP {sc})"
+                    )
+            elif 400 <= sc < 500:
+                # Permanent client error — do not retry
+                raise SidecarPermanentError(
+                    f"Sidecar returned HTTP {sc}: {response.text[:200]}",
+                    status_code=sc,
+                )
+            elif sc >= 300:
+                # Non-transient server error (5xx other than 502/503)
+                raise SidecarError(
+                    f"Sidecar returned HTTP {sc}: {response.text[:500]}"
+                )
+            # 2xx — success
+            return response
+
+        except (httpx.ConnectError, httpx.TimeoutException) as exc:
+            if attempt < max_attempts:
+                frappe.logger("frapperag").warning(
+                    f"[RETRY] attempt={attempt}/{max_attempts} delay={delay}s error={type(exc).__name__}"
+                )
+                time.sleep(delay)
+                delay *= multiplier
+            else:
+                raise SidecarUnavailableError(
+                    f"Sidecar unavailable after {max_attempts} retries"
+                ) from exc
+        except (SidecarUnavailableError, SidecarPermanentError, SidecarError):
+            raise
+
+
 def search(
     text: str,
     top_k: int = 5,
@@ -46,87 +135,49 @@ def search(
     """POST /search — embed query text via sidecar and search all v3_* tables.
 
     Returns a list of dicts: {doctype, name, text, _distance} sorted by distance.
-    Raises SidecarError on HTTP error, connection failure, or timeout.
+    Raises SidecarUnavailableError after 3 failed connection/timeout/transient attempts.
+    Raises SidecarPermanentError on 4xx client errors.
+    Raises SidecarError on other non-2xx responses.
     """
     import httpx
 
     url = f"{_base_url(port)}/search"
     payload = {"text": text, "top_k": top_k, "max_distance": max_distance}
-    try:
-        response = httpx.post(url, json=payload, timeout=30.0)
-        response.raise_for_status()
-        return response.json()["results"]
-    except httpx.ConnectError as exc:
-        raise SidecarError(
-            f"Cannot connect to RAG sidecar at {url}. "
-            "Is the sidecar running? Check bench Procfile. "
-            f"Original error: {exc}"
-        ) from exc
-    except httpx.HTTPStatusError as exc:
-        raise SidecarError(
-            f"Sidecar /search returned HTTP {exc.response.status_code}: "
-            f"{exc.response.text[:500]}"
-        ) from exc
-    except httpx.TimeoutException as exc:
-        raise SidecarError(f"Sidecar /search timed out after 30s: {exc}") from exc
+    response = _retry_call(httpx.post, url, json=payload, timeout=30.0)
+    return response.json()["results"]
 
 
 def upsert_record(doctype: str, name: str, text: str, port: int | None = None) -> None:
     """POST /upsert — embed text via sidecar and store in the v3_ table.
 
-    Raises SidecarError on HTTP error or connection failure.
+    Raises SidecarUnavailableError after 3 failed connection/timeout/transient attempts.
+    Raises SidecarPermanentError on 4xx client errors.
+    Raises SidecarError on other non-2xx responses.
     """
     import httpx
 
     url = f"{_base_url(port)}/upsert"
     payload = {"doctype": doctype, "name": name, "text": text}
-    try:
-        response = httpx.post(url, json=payload, timeout=30.0)
-        response.raise_for_status()
-    except httpx.ConnectError as exc:
-        raise SidecarError(
-            f"Cannot connect to RAG sidecar at {url}. "
-            "Is the sidecar running? Check bench Procfile. "
-            f"Original error: {exc}"
-        ) from exc
-    except httpx.HTTPStatusError as exc:
-        raise SidecarError(
-            f"Sidecar /upsert returned HTTP {exc.response.status_code}: "
-            f"{exc.response.text[:500]}"
-        ) from exc
-    except httpx.TimeoutException as exc:
-        raise SidecarError(f"Sidecar /upsert timed out after 30s: {exc}") from exc
+    _retry_call(httpx.post, url, json=payload, timeout=30.0)
 
 
 def delete_record(doctype: str, name: str, port: int | None = None) -> None:
     """DELETE /record/{table}/{record_id} — remove one vector entry.
 
     Idempotent — no error if the record does not exist (sidecar returns 200).
-    Raises SidecarError on HTTP error or connection failure.
+    Raises SidecarUnavailableError after 3 failed connection/timeout/transient attempts.
+    Raises SidecarPermanentError on 4xx client errors.
+    Raises SidecarError on other non-2xx responses.
     """
     import httpx
+    import urllib.parse
 
     table = "v3_" + doctype.lower().replace(" ", "_")
     record_id = f"{doctype}:{name}"
     # URL-encode the colon in the record_id component
-    import urllib.parse
     encoded_id = urllib.parse.quote(record_id, safe="")
     url = f"{_base_url(port)}/record/{table}/{encoded_id}"
-    try:
-        response = httpx.delete(url, timeout=30.0)
-        response.raise_for_status()
-    except httpx.ConnectError as exc:
-        raise SidecarError(
-            f"Cannot connect to RAG sidecar at {url}. "
-            f"Original error: {exc}"
-        ) from exc
-    except httpx.HTTPStatusError as exc:
-        raise SidecarError(
-            f"Sidecar /record delete returned HTTP {exc.response.status_code}: "
-            f"{exc.response.text[:500]}"
-        ) from exc
-    except httpx.TimeoutException as exc:
-        raise SidecarError(f"Sidecar /record delete timed out after 30s: {exc}") from exc
+    _retry_call(httpx.delete, url, timeout=30.0)
 
 
 def chat(
@@ -147,8 +198,10 @@ def chat(
     Accepts an optional tools list (list of function-declaration dicts) passed through to the sidecar.
 
     Returns {"text": str, "tokens_used": int}.
-    Raises SidecarError on HTTP error, connection failure, or timeout (120s to
-    allow for the sidecar's internal 60s rate-limit retry).
+    Uses a 120s timeout to allow for the sidecar's internal 60s rate-limit retry.
+    Raises SidecarUnavailableError after 3 failed connection/timeout/transient attempts.
+    Raises SidecarPermanentError on 4xx client errors.
+    Raises SidecarError on other non-2xx responses.
     """
     import httpx
 
@@ -156,23 +209,8 @@ def chat(
     payload = {"messages": messages, "api_key": api_key, "model": model}
     if tools:
         payload["tools"] = tools
-    try:
-        response = httpx.post(url, json=payload, timeout=120.0)
-        response.raise_for_status()
-        return response.json()
-    except httpx.ConnectError as exc:
-        raise SidecarError(
-            f"Cannot connect to RAG sidecar at {url}. "
-            "Is the sidecar running? Check bench Procfile. "
-            f"Original error: {exc}"
-        ) from exc
-    except httpx.HTTPStatusError as exc:
-        raise SidecarError(
-            f"Sidecar /chat returned HTTP {exc.response.status_code}: "
-            f"{exc.response.text[:500]}"
-        ) from exc
-    except httpx.TimeoutException as exc:
-        raise SidecarError(f"Sidecar /chat timed out after 120s: {exc}") from exc
+    response = _retry_call(httpx.post, url, json=payload, timeout=120.0)
+    return response.json()
 
 
 def drop_table(doctype: str, port: int | None = None) -> None:
@@ -180,24 +218,12 @@ def drop_table(doctype: str, port: int | None = None) -> None:
 
     Used when a DocType is removed from the whitelist (purge job).
     Idempotent — no error if the table does not exist.
-    Raises SidecarError on HTTP error or connection failure.
+    Raises SidecarUnavailableError after 3 failed connection/timeout/transient attempts.
+    Raises SidecarPermanentError on 4xx client errors.
+    Raises SidecarError on other non-2xx responses.
     """
     import httpx
 
     table = "v3_" + doctype.lower().replace(" ", "_")
     url = f"{_base_url(port)}/table/{table}"
-    try:
-        response = httpx.delete(url, timeout=30.0)
-        response.raise_for_status()
-    except httpx.ConnectError as exc:
-        raise SidecarError(
-            f"Cannot connect to RAG sidecar at {url}. "
-            f"Original error: {exc}"
-        ) from exc
-    except httpx.HTTPStatusError as exc:
-        raise SidecarError(
-            f"Sidecar /table delete returned HTTP {exc.response.status_code}: "
-            f"{exc.response.text[:500]}"
-        ) from exc
-    except httpx.TimeoutException as exc:
-        raise SidecarError(f"Sidecar /table delete timed out after 30s: {exc}") from exc
+    _retry_call(httpx.delete, url, timeout=30.0)

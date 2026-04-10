@@ -12,6 +12,12 @@ import frappe
 from frappe.utils import now_datetime, add_to_date
 
 
+def _log():
+    logger = frappe.logger("frapperag", allow_site=True, file_count=5, max_size=250_000)
+    logger.setLevel("INFO")
+    return logger
+
+
 def run_sync_job(
     sync_log_id: str,
     doctype: str,
@@ -21,6 +27,7 @@ def run_sync_job(
     **kwargs,
 ) -> None:
     """Worker: upsert (Create/Update/Rename) or delete (Delete) one record."""
+    _log().info(f"[SYNC_START] sync_log_id={sync_log_id} doctype={doctype} name={name} trigger_type={trigger_type}")
     frappe.set_user(user)
 
     frappe.db.set_value("Sync Event Log", sync_log_id, "outcome", "Running")
@@ -32,11 +39,13 @@ def run_sync_job(
             try:
                 delete_record(doctype, name)
                 frappe.db.set_value("Sync Event Log", sync_log_id, "outcome", "Success")
+                _log().info(f"[SYNC_SUCCESS] sync_log_id={sync_log_id} trigger_type=Delete")
             except SidecarError as exc:
                 frappe.db.set_value("Sync Event Log", sync_log_id, {
                     "outcome": "Failed",
                     "error_message": str(exc),
                 })
+                _log().warning(f"[SYNC_FAIL] sync_log_id={sync_log_id} trigger_type=Delete failure_reason=Sidecar unavailable")
             frappe.db.commit()
             return
 
@@ -59,11 +68,13 @@ def run_sync_job(
                 if text:
                     upsert_record(doctype, name, text)
                 frappe.db.set_value("Sync Event Log", sync_log_id, "outcome", "Success")
+                _log().info(f"[SYNC_SUCCESS] sync_log_id={sync_log_id} trigger_type=Rename")
             except SidecarError as exc:
                 frappe.db.set_value("Sync Event Log", sync_log_id, {
                     "outcome": "Failed",
                     "error_message": str(exc),
                 })
+                _log().warning(f"[SYNC_FAIL] sync_log_id={sync_log_id} trigger_type=Rename failure_reason=Sidecar unavailable")
             frappe.db.commit()
             return
 
@@ -86,19 +97,23 @@ def run_sync_job(
         try:
             upsert_record(doctype, name, text)
             frappe.db.set_value("Sync Event Log", sync_log_id, "outcome", "Success")
+            _log().info(f"[SYNC_SUCCESS] sync_log_id={sync_log_id} trigger_type={trigger_type}")
         except SidecarError as exc:
             frappe.db.set_value("Sync Event Log", sync_log_id, {
                 "outcome": "Failed",
                 "error_message": str(exc),
             })
+            _log().warning(f"[SYNC_FAIL] sync_log_id={sync_log_id} trigger_type={trigger_type} failure_reason=Sidecar unavailable")
         frappe.db.commit()
 
     except Exception:
+        tb = traceback.format_exc()
         frappe.db.set_value("Sync Event Log", sync_log_id, {
             "outcome": "Failed",
-            "error_message": traceback.format_exc(),
+            "error_message": tb,
         })
         frappe.db.commit()
+        _log().warning(f"[SYNC_FAIL] sync_log_id={sync_log_id} failure_reason=Unknown error error={tb[:200]}")
 
 
 def run_purge_job(sync_log_id: str, doctype: str, user: str, **kwargs) -> None:

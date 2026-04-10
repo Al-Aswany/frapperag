@@ -78,6 +78,7 @@ def run_chat_job(message_id: str, session_id: str, user: str, question: str = ""
     from frapperag.rag.report_executor import execute_report
 
     job_start = _time.monotonic()
+    _log().info(f"[CHAT_START] message_id={message_id} session_id={session_id} user={user}")
     _log().info(f"[TIMING][{message_id}] run_chat_job START")
 
     # Read api_key from Settings — never from enqueue kwargs
@@ -268,32 +269,66 @@ def run_chat_job(message_id: str, session_id: str, user: str, question: str = ""
         _log().info(
             f"[TIMING][{message_id}] run_chat_job DONE total={_time.monotonic() - job_start:.3f}s"
         )
+        _log().info(f"[CHAT_SUCCESS] message_id={message_id}")
 
-    except Exception:
+    except Exception as exc:
         import traceback
+        import httpx as _httpx
+        from frapperag.rag.sidecar_client import SidecarUnavailableError as _SidecarUnavailableError
+        from frapperag.rag.sidecar_client import SidecarPermanentError as _SidecarPermanentError
         tb = traceback.format_exc()
         _log().error(
             f"[TIMING][{message_id}] run_chat_job FAILED after {_time.monotonic() - job_start:.3f}s"
         )
+
+        # Classify the exception into a user-readable failure reason (T016, T021)
+        try:
+            exc_type = type(exc).__name__
+            exc_module = type(exc).__module__ or ""
+            if isinstance(exc, _SidecarUnavailableError):
+                failure_reason = "Assistant is temporarily unavailable — please try again shortly"
+            elif isinstance(exc, _SidecarPermanentError):
+                sc_suffix = f" (HTTP {exc.status_code})" if exc.status_code else ""
+                failure_reason = f"Sidecar error{sc_suffix}"
+            elif isinstance(exc, (_httpx.ConnectError, _httpx.TimeoutException)):
+                failure_reason = "Assistant is temporarily unavailable — please try again shortly"
+            elif (
+                getattr(exc, "status_code", None) == 429
+                or "ResourceExhausted" in exc_type
+                or "quota" in str(exc).lower()
+                or "429" in str(exc)
+            ):
+                failure_reason = "Too many requests — please wait a moment before trying again"
+            elif "google" in exc_module or "generativeai" in exc_module:
+                failure_reason = "Gemini API error"
+            else:
+                failure_reason = "Unknown error"
+        except Exception:
+            failure_reason = "Unknown error"
+        failure_reason = failure_reason[:140]
+
+        _log().warning(f"[CHAT_FAIL] message_id={message_id} failure_reason={failure_reason!r} error={tb[:200]}")
         # RAW SQL COUPLING — `tabChat Message` UPDATE (error path)
-        # Columns written: status, error_detail, modified, modified_by
+        # Columns written: status, error_detail, failure_reason, modified, modified_by
         # See step 7 above for why raw SQL is used instead of the ORM.
         # WARNING: If you add error-state fields to chat_message.json, update this
         # UPDATE statement to include them.
         frappe.db.sql(
             """UPDATE `tabChat Message`
-               SET status = %s, error_detail = %s, modified = %s, modified_by = %s
+               SET status = %s, error_detail = %s, failure_reason = %s,
+                   modified = %s, modified_by = %s
                WHERE name = %s""",
-            ("Failed", tb[:2000], now_datetime(), user, message_id),
+            ("Failed", tb[:2000], failure_reason, now_datetime(), user, message_id),
         )
         frappe.db.commit()
         frappe.publish_realtime(
             event="rag_chat_response",
             message={
-                "message_id": message_id,
-                "session_id": session_id,
-                "status":     "Failed",
-                "error":      tb[:500],
+                "message_id":    message_id,
+                "session_id":    session_id,
+                "status":        "Failed",
+                "failure_reason": failure_reason,
+                "error":         tb[:500],
             },
             user=user,
             after_commit=False,
@@ -313,16 +348,29 @@ def mark_stalled_chat_messages():
     stalled = frappe.db.get_all(
         "Chat Message",
         filters={"status": "Pending", "creation": ["<", cutoff]},
-        pluck="name",
+        fields=["name", "owner"],
     )
-    for name in stalled:
+    _STALL_REASON = "Response timed out"
+    for msg in stalled:
         frappe.db.set_value(
             "Chat Message",
-            name,
+            msg.name,
             {
-                "status":       "Failed",
-                "error_detail": "Message exceeded 10-minute processing timeout. Worker may have crashed.",
+                "status":         "Failed",
+                "failure_reason": _STALL_REASON,
+                "error_detail":   "Message exceeded 10-minute processing timeout. Worker may have crashed.",
             },
         )
     if stalled:
         frappe.db.commit()
+        # Notify any open chat tab so the spinner resolves without a page reload
+        for msg in stalled:
+            frappe.publish_realtime(
+                "chat_message_update",
+                {
+                    "message_id":    msg.name,
+                    "status":        "Failed",
+                    "failure_reason": _STALL_REASON,
+                },
+                user=msg.owner,
+            )

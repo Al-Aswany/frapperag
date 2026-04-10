@@ -9,6 +9,12 @@ import traceback
 import frappe
 from frappe.utils import now_datetime, add_to_date
 
+
+def _log():
+    logger = frappe.logger("frapperag", allow_site=True, file_count=5, max_size=250_000)
+    logger.setLevel("INFO")
+    return logger
+
 from frapperag.rag.base_indexer import BaseIndexer
 
 # Fields fetched for DocTypes that use frappe.db.get_all (no child tables needed)
@@ -133,7 +139,11 @@ def run_indexing_job(indexing_job_id: str, doctype: str, user: str, **kwargs):
     """
     job_id = indexing_job_id
     from frapperag.rag.text_converter import to_text
-    from frapperag.rag.sidecar_client import upsert_record, SidecarError
+    from frapperag.rag.sidecar_client import (
+        upsert_record, SidecarError, SidecarUnavailableError, SidecarPermanentError
+    )
+
+    _log().info(f"[JOB_START] job_id={job_id} doctype={doctype} user={user}")
 
     # Enforce the triggering user's permission context (Principle III)
     frappe.set_user(user)
@@ -192,14 +202,42 @@ def run_indexing_job(indexing_job_id: str, doctype: str, user: str, **kwargs):
                 upsert_record(doctype, rec["name"], text)
                 job.processed_records += 1
 
-            except SidecarError as exc:
-                # Sidecar unreachable or returned a non-2xx — abort immediately.
-                job.status       = "Failed"
-                job.error_detail = str(exc)
-                job.end_time     = now_datetime()
+            except SidecarUnavailableError as exc:
+                # Transient errors exhausted all retries — abort immediately.
+                job.status         = "Failed"
+                job.error_detail   = str(exc)
+                job.failure_reason = "Sidecar unavailable"
+                job.end_time       = now_datetime()
                 job.save(ignore_permissions=True)
                 frappe.db.commit()
                 _publish(job, user, error=str(exc))
+                _log().warning(f"[JOB_FAIL] job_id={job_id} failure_reason=Sidecar unavailable")
+                return
+
+            except SidecarPermanentError as exc:
+                # Permanent 4xx client error — abort immediately.
+                sc_suffix = f" (HTTP {exc.status_code})" if exc.status_code else ""
+                failure_reason = f"Sidecar error{sc_suffix}"[:140]
+                job.status         = "Failed"
+                job.error_detail   = str(exc)
+                job.failure_reason = failure_reason
+                job.end_time       = now_datetime()
+                job.save(ignore_permissions=True)
+                frappe.db.commit()
+                _publish(job, user, error=str(exc))
+                _log().warning(f"[JOB_FAIL] job_id={job_id} failure_reason={failure_reason}")
+                return
+
+            except SidecarError as exc:
+                # Other non-2xx sidecar response — abort immediately.
+                job.status         = "Failed"
+                job.error_detail   = str(exc)
+                job.failure_reason = "Sidecar unavailable"
+                job.end_time       = now_datetime()
+                job.save(ignore_permissions=True)
+                frappe.db.commit()
+                _publish(job, user, error=str(exc))
+                _log().warning(f"[JOB_FAIL] job_id={job_id} failure_reason=Sidecar unavailable")
                 return
 
             except Exception as exc:
@@ -229,15 +267,21 @@ def run_indexing_job(indexing_job_id: str, doctype: str, user: str, **kwargs):
         job.save(ignore_permissions=True)
         frappe.db.commit()
         _publish(job, user)
+        _log().info(f"[JOB_SUCCESS] job_id={job_id} status={job.status} processed={job.processed_records} failed={job.failed_records}")
 
     except Exception:
         tb = traceback.format_exc()
-        job.status       = "Failed"
-        job.error_detail = tb
-        job.end_time     = now_datetime()
+        failure_reason = "Unknown error"
+        if "quota" in tb.lower() or "429" in tb:
+            failure_reason = "Gemini quota exceeded"
+        job.status         = "Failed"
+        job.error_detail   = tb
+        job.failure_reason = failure_reason[:140]
+        job.end_time       = now_datetime()
         job.save(ignore_permissions=True)
         frappe.db.commit()
         _publish(job, user, error=tb)
+        _log().warning(f"[JOB_FAIL] job_id={job_id} failure_reason={failure_reason}")
         frappe.log_error(
             title=f"RAG Indexing Job Failed [{job_id}]",
             message=tb,
@@ -277,12 +321,13 @@ def mark_stalled_jobs() -> None:
             "AI Indexing Job",
             job_name,
             {
-                "status":       "Failed (Stalled)",
-                "error_detail": (
+                "status":         "Failed (Stalled)",
+                "failure_reason": "Response timed out",
+                "error_detail":   (
                     "Job exceeded 2-hour progress timeout. "
                     "Worker may have crashed."
                 ),
-                "end_time":     now_datetime(),
+                "end_time":       now_datetime(),
             },
         )
     if stalled:

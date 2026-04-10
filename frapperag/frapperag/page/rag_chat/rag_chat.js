@@ -318,10 +318,16 @@ frappe.pages["rag-chat"].on_page_load = function(wrapper) {
                     </div>
                 `).appendTo($msgs);
             } else if (data.status === "Failed") {
-                frappe.msgprint({
-                    message: "The AI assistant encountered an error. Please try again.",
-                    indicator: "red",
-                });
+                var err_text = data.failure_reason
+                    || "The AI assistant encountered an error. Please try again.";
+                $(`
+                    <div class="rag-msg rag-msg-assistant" style="margin-bottom:12px;">
+                        <div style="display:inline-block; max-width:75%; padding:10px 14px;
+                                    border-radius:12px; background:#fff0f0; color:#c00;">
+                            ${frappe.utils.escape_html(err_text)}
+                        </div>
+                    </div>
+                `).appendTo($msgs);
             }
 
             $msgs.scrollTop($msgs[0].scrollHeight);
@@ -331,6 +337,31 @@ frappe.pages["rag-chat"].on_page_load = function(wrapper) {
             load_sessions();  // refresh sidebar title after first completed response
         });
     }
+
+    // ── Stalled-message realtime (from scheduler sweep) ───────────────────────
+    // Handles chat_message_update events emitted by mark_stalled_chat_messages()
+    // when a Pending message exceeds the 10-minute processing timeout.
+
+    frappe.realtime.on("chat_message_update", function(data) {
+        if (data.message_id !== current_message_id) return;
+        if (data.status !== "Failed") return;
+
+        $(".rag-pending-bubble").remove();
+        var $msgs = $("#rag-messages");
+        var err_text = data.failure_reason || "Response timed out. Please try again.";
+        $(`
+            <div class="rag-msg rag-msg-assistant" style="margin-bottom:12px;">
+                <div style="display:inline-block; max-width:75%; padding:10px 14px;
+                            border-radius:12px; background:#fff0f0; color:#c00;">
+                    ${frappe.utils.escape_html(err_text)}
+                </div>
+            </div>
+        `).appendTo($msgs);
+        $msgs.scrollTop($msgs[0].scrollHeight);
+        set_input_locked(false);
+        frappe.realtime.off("rag_chat_response");
+        current_message_id = null;
+    });
 
     // ── Init ──────────────────────────────────────────────────────────────────
     load_sessions();

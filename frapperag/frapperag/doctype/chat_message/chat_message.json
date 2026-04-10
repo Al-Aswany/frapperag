@@ -14,7 +14,8 @@
   "section_citations",
   "citations",
   "section_error",
-  "error_detail"
+  "error_detail",
+  "failure_reason"
  ],
  "fields": [
   {
@@ -75,6 +76,12 @@
    "fieldname": "error_detail",
    "fieldtype": "Long Text",
    "label": "Error Detail"
+  },
+  {
+   "fieldname": "failure_reason",
+   "fieldtype": "Data",
+   "label": "Failure Reason",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 0,

@@ -1,0 +1,72 @@
+.status-badge {
+	display: inline-block;
+	padding: 2px 10px;
+	border-radius: 12px;
+	font-weight: 600;
+	font-size: 13px;
+}
+
+.status-badge.reachable {
+	background-color: var(--green-100, #d4edda);
+	color: var(--green-700, #155724);
+}
+
+.status-badge.unreachable {
+	background-color: var(--red-100, #f8d7da);
+	color: var(--red-700, #721c24);
+}
+
+.status-badge.unknown {
+	background-color: var(--gray-100, #e2e3e5);
+	color: var(--gray-700, #383d41);
+}
+
+#rag-health-page .section-card {
+	border: 1px solid var(--border-color, #d1d8dd);
+	border-radius: 6px;
+	padding: 16px 20px;
+	margin-bottom: 20px;
+}
+
+#rag-health-page .section-card h5 {
+	margin-top: 0;
+	margin-bottom: 12px;
+	font-size: 14px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	color: var(--text-muted, #8d99a6);
+}
+
+#index-stats,
+#failed-jobs {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 13px;
+}
+
+#index-stats th,
+#index-stats td,
+#failed-jobs th,
+#failed-jobs td {
+	padding: 6px 12px;
+	text-align: left;
+	border-bottom: 1px solid var(--border-color, #d1d8dd);
+}
+
+#index-stats th,
+#failed-jobs th {
+	font-weight: 600;
+	color: var(--text-muted, #8d99a6);
+}
+
+.last-updated {
+	font-size: 11px;
+	color: var(--text-muted, #8d99a6);
+	margin-left: 12px;
+}
+
+.error-text {
+	color: var(--red-500, #e74c3c);
+	font-size: 12px;
+}

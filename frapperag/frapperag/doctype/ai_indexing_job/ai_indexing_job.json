@@ -22,6 +22,7 @@
   "tokens_used",
   "section_error",
   "error_detail",
+  "failure_reason",
   "section_internal",
   "queue_job_id"
  ],
@@ -121,6 +122,12 @@
    "fieldname": "error_detail",
    "fieldtype": "Long Text",
    "label": "Error Detail"
+  },
+  {
+   "fieldname": "failure_reason",
+   "fieldtype": "Data",
+   "label": "Failure Reason",
+   "read_only": 1
   },
   {
    "collapsible": 1,
