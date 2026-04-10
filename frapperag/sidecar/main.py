@@ -237,6 +237,7 @@ class ChatRequest(BaseModel):
     messages: list[ChatMessage]
     api_key: str
     model: str = "gemini-2.5-flash"
+    tools: list[dict] | None = None  # per-report function declarations
 
 
 # ---------------------------------------------------------------------------
@@ -365,13 +366,25 @@ def chat(req: ChatRequest):
         _genai_api_key = req.api_key
         _genai_model_instance = None  # force model recreate on key change
 
-    if _genai_model_instance is None or req.model != _genai_model_name:
-        _genai_model_instance = genai.GenerativeModel(req.model)
-        _genai_model_name = req.model
+    if req.tools:
+        # Per-request model instance when tools are present — bypass cache
+        tool_objects = [
+            genai.types.Tool(function_declarations=[
+                genai.types.FunctionDeclaration(**fd)
+                for fd in tool_block.get("function_declarations", [])
+            ])
+            for tool_block in req.tools
+        ]
+        model_instance = genai.GenerativeModel(req.model, tools=tool_objects)
+    else:
+        if _genai_model_instance is None or req.model != _genai_model_name:
+            _genai_model_instance = genai.GenerativeModel(req.model)
+            _genai_model_name = req.model
+        model_instance = _genai_model_instance
 
     history      = [{"role": m.role, "parts": m.parts} for m in req.messages[:-1]]
     last_message = req.messages[-1].parts[0]
-    chat_session = _genai_model_instance.start_chat(history=history)
+    chat_session = model_instance.start_chat(history=history)
 
     response = None
     for attempt in range(2):
@@ -393,6 +406,16 @@ def chat(req: ChatRequest):
     tokens_used = 0
     if hasattr(response, "usage_metadata") and response.usage_metadata:
         tokens_used = getattr(response.usage_metadata, "total_token_count", 0)
+
+    # Detect tool_call response — check before accessing response.text
+    if response.candidates and response.candidates[0].content.parts:
+        for part in response.candidates[0].content.parts:
+            if hasattr(part, "function_call") and part.function_call and part.function_call.name:
+                fc = part.function_call
+                return {
+                    "tool_call": {"name": fc.name, "args": dict(fc.args)},
+                    "tokens_used": tokens_used,
+                }
 
     return {"text": response.text, "tokens_used": tokens_used}
 

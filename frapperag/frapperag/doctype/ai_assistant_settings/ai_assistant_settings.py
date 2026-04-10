@@ -22,6 +22,39 @@ class AIAssistantSettings(Document):
                 frappe.ValidationError,
             )
 
+        # Block A — Report type validation (FR-002)
+        for i, row in enumerate(self.allowed_reports or []):
+            if not row.report:
+                continue
+            rtype = frappe.db.get_value("Report", row.report, "report_type")
+            if rtype != "Report Builder":
+                frappe.throw(
+                    f"Allowed Reports row {i + 1}: '{row.report}' is a {rtype}. "
+                    "Only Report Builder reports are permitted.",
+                    frappe.ValidationError,
+                )
+
+        # Block B — Default filters JSON validation (FR-001)
+        import json
+
+        for i, row in enumerate(self.allowed_reports or []):
+            if not row.default_filters:
+                continue
+            try:
+                parsed = json.loads(row.default_filters)
+            except json.JSONDecodeError as exc:
+                frappe.throw(
+                    f"Allowed Reports row {i + 1} ({row.report}): "
+                    f"Default Filters is not valid JSON — {exc}",
+                    frappe.ValidationError,
+                )
+            if not isinstance(parsed, dict):
+                frappe.throw(
+                    f"Allowed Reports row {i + 1} ({row.report}): "
+                    "Default Filters must be a JSON object {}, not an array or scalar.",
+                    frappe.ValidationError,
+                )
+
     def on_update(self):
         """Detect removed DocTypes and enqueue a purge job for each one (US3 / FR-005)."""
         old = self.get_doc_before_save()

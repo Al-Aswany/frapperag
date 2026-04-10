@@ -11,31 +11,6 @@ EMPTY_CONTEXT_NOTE = (
     "or no data has been indexed yet. Respond helpfully but do not invent information.]"
 )
 
-CONVERSATIONAL_NOTE = (
-    "[This is a conversational message with no specific ERP data request. "
-    "Respond naturally and helpfully as a business assistant.]"
-)
-
-# ERP-specific terms that signal the user is asking about business data.
-# Any match → treat as a data query (use EMPTY_CONTEXT_NOTE when no results found).
-# No match  → treat as conversational (use CONVERSATIONAL_NOTE).
-_ERP_KEYWORDS = frozenset({
-    "customer", "customers", "invoice", "invoices", "sales", "order", "orders",
-    "item", "items", "product", "products", "payment", "payments", "stock",
-    "supplier", "suppliers", "employee", "employees", "account", "accounts",
-    "balance", "amount", "report", "reports", "purchase", "purchases",
-    "delivery", "quotation", "lead", "opportunity", "expense", "budget",
-    "tax", "ledger", "journal", "outstanding", "due", "receipt", "shipment",
-    "warehouse", "revenue", "profit", "loss", "transaction", "vendor",
-    "contract", "price", "cost", "total", "quantity", "inventory",
-})
-
-
-def _is_conversational(question: str) -> bool:
-    """Return True when the question contains no ERP-specific keywords."""
-    words = set(question.lower().split())
-    return not bool(words & _ERP_KEYWORDS)
-
 
 def build_messages(question: str, context_records: list, history: list) -> list:
     """
@@ -68,10 +43,83 @@ def build_messages(question: str, context_records: list, history: list) -> list:
             for r in context_records
         )
         user_turn = f"Context from ERP data:\n{context_text}\n\nQuestion: {question}"
-    elif _is_conversational(question):
-        user_turn = f"{CONVERSATIONAL_NOTE}\n\nMessage: {question}"
     else:
         user_turn = f"{EMPTY_CONTEXT_NOTE}\n\nQuestion: {question}"
 
     messages.append({"role": "user", "parts": [user_turn]})
     return messages
+
+
+import re as _re
+
+
+def _slugify_report_name(name: str) -> str:
+    """'Accounts Receivable Summary' → 'run_accounts_receivable_summary'"""
+    return "run_" + _re.sub(r"[^a-zA-Z0-9]+", "_", name).lower().strip("_")
+
+
+def build_report_tool_definitions(
+    whitelist_entries: list,
+) -> tuple[list | None, dict]:
+    """Build one Gemini function-declaration dict per whitelisted report.
+
+    Args:
+        whitelist_entries: list of dicts, each with keys:
+            report (str), description (str), default_filters (dict),
+            filter_meta (list of {fieldname, label, fieldtype, reqd, default})
+
+    Returns:
+        tool_list  — list of tool dicts (pass as `tools` to sidecar_client.chat());
+                     None when whitelist_entries is empty.
+        slug_to_name — {"run_accounts_receivable_summary": "Accounts Receivable Summary", …}
+    """
+    if not whitelist_entries:
+        return None, {}
+
+    _NUMERIC_TYPES = {"Int", "Float", "Currency", "Percent"}
+    _DATE_TYPES = {"Date", "Datetime"}
+
+    tool_list = []
+    slug_to_name = {}
+
+    for entry in whitelist_entries:
+        slug = _slugify_report_name(entry["report"])
+        slug_to_name[slug] = entry["report"]
+
+        properties: dict = {}
+        required: list = []
+
+        for f in entry.get("filter_meta", []):
+            ft = f.get("fieldtype", "Data")
+            if ft in _NUMERIC_TYPES:
+                json_type = "NUMBER"
+            elif ft == "Check":
+                json_type = "BOOLEAN"
+            else:
+                json_type = "STRING"
+
+            desc = f.get("label", f.get("fieldname", ""))
+            if ft in _DATE_TYPES:
+                desc += " (ISO date: YYYY-MM-DD)"
+
+            default_val = (entry.get("default_filters") or {}).get(f["fieldname"])
+            if default_val is not None:
+                desc += f' (default: "{default_val}")'
+
+            properties[f["fieldname"]] = {"type": json_type, "description": desc}
+            if f.get("mandatory"):
+                required.append(f["fieldname"])
+
+        tool_list.append({
+            "function_declarations": [{
+                "name": slug,
+                "description": entry.get("description") or f"Run the {entry['report']} report.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": properties,
+                    "required": required,
+                },
+            }]
+        })
+
+    return tool_list, slug_to_name

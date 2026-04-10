@@ -83,17 +83,101 @@ frappe.pages["rag-chat"].on_page_load = function(wrapper) {
     function build_citations_html(citations_raw) {
         if (!citations_raw) return "";
         try {
-            var cites = typeof citations_raw === "string" ? JSON.parse(citations_raw) : citations_raw;
+            var cites = typeof citations_raw === "string"
+                ? JSON.parse(citations_raw) : citations_raw;
             if (!cites || !cites.length) return "";
-            return "<div style='margin-top:6px; font-size:11px;'>" +
-                cites.map(function(c) {
-                    var slug = frappe.router.slug(c.doctype);
-                    return "<a href='/app/" + slug + "/" + c.name + "' target='_blank' "
-                         + "style='margin-right:8px; color:#5e64ff;'>"
-                         + frappe.utils.escape_html(c.doctype) + ": "
-                         + frappe.utils.escape_html(c.name) + "</a>";
-                }).join("") + "</div>";
+
+            var wrapper = document.createElement("div");
+            wrapper.style.marginTop = "6px";
+            wrapper.style.fontSize  = "11px";
+
+            cites.forEach(function(c) {
+                if (c.type === "report_result") {
+                    render_report_result(c, wrapper);
+                } else {
+                    // Existing doc-link behaviour (type === "doc" or type absent)
+                    var a = document.createElement("a");
+                    a.href        = "/app/" + frappe.router.slug(c.doctype) + "/" + c.name;
+                    a.target      = "_blank";
+                    a.style.marginRight = "8px";
+                    a.style.color       = "#5e64ff";
+                    a.textContent = frappe.utils.escape_html(c.doctype) + ": "
+                                  + frappe.utils.escape_html(c.name);
+                    wrapper.appendChild(a);
+                }
+            });
+
+            // Return outer HTML so it can be injected into template literals
+            // (existing callers concatenate citations_html into a string template)
+            return wrapper.outerHTML;
         } catch(e) { return ""; }
+    }
+
+    function render_report_result(c, container) {
+        var wrapper = document.createElement("div");
+        wrapper.className = "rag-report-result";
+        wrapper.style.marginTop  = "8px";
+        wrapper.style.overflowX  = "auto";
+
+        // Report name heading
+        var title = document.createElement("p");
+        title.className   = "rag-report-name";
+        title.style.fontWeight  = "600";
+        title.style.marginBottom = "4px";
+        title.textContent = c.report_name || "Report";
+        wrapper.appendChild(title);
+
+        // Table
+        var table = document.createElement("table");
+        table.className          = "rag-report-table";
+        table.style.borderCollapse = "collapse";
+        table.style.width          = "100%";
+        table.style.fontSize       = "11px";
+
+        // Header
+        var thead     = document.createElement("thead");
+        var headerRow = document.createElement("tr");
+        (c.columns || []).forEach(function(col) {
+            var th = document.createElement("th");
+            th.style.borderBottom  = "1px solid #ccc";
+            th.style.padding       = "3px 6px";
+            th.style.textAlign     = "left";
+            th.style.whiteSpace    = "nowrap";
+            th.textContent = String(col);
+            headerRow.appendChild(th);
+        });
+        thead.appendChild(headerRow);
+        table.appendChild(thead);
+
+        // Body rows
+        var tbody = document.createElement("tbody");
+        (c.rows || []).forEach(function(row) {
+            var tr = document.createElement("tr");
+            (row || []).forEach(function(cell) {
+                var td = document.createElement("td");
+                td.style.padding      = "2px 6px";
+                td.style.borderBottom = "1px solid #eee";
+                td.textContent = (cell === null || cell === undefined)
+                    ? "" : String(cell);
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        wrapper.appendChild(table);
+
+        // Truncation note (FR-019)
+        var rowsShown = (c.rows || []).length;
+        if (c.row_count > rowsShown) {
+            var note = document.createElement("p");
+            note.className   = "rag-report-truncation-note";
+            note.style.color = "#888";
+            note.style.marginTop = "4px";
+            note.textContent = "Showing " + rowsShown + " of " + c.row_count + " rows.";
+            wrapper.appendChild(note);
+        }
+
+        container.appendChild(wrapper);
     }
 
     function render_message(m, $container) {

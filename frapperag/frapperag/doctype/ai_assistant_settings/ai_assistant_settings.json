@@ -12,6 +12,8 @@
   "allowed_doctypes",
   "section_roles",
   "allowed_roles",
+  "section_reports",
+  "allowed_reports",
   "section_sidecar",
   "sidecar_port",
   "section_sync_health",
@@ -59,6 +61,17 @@
    "options": "RAG Allowed Role"
   },
   {
+   "fieldname": "section_reports",
+   "fieldtype": "Section Break",
+   "label": "Allowed Reports"
+  },
+  {
+   "fieldname": "allowed_reports",
+   "fieldtype": "Table",
+   "label": "Allowed Reports",
+   "options": "RAG Allowed Report"
+  },
+  {
    "fieldname": "section_sidecar",
    "fieldtype": "Section Break",
    "label": "RAG Sidecar"
@@ -84,7 +97,7 @@
  "index_web_pages_for_search": 0,
  "issingle": 1,
  "links": [],
- "modified": "2026-04-05 00:00:00.000000",
+ "modified": "2026-04-09 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "FrappeRAG",
  "name": "AI Assistant Settings",

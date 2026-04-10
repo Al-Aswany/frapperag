@@ -12,6 +12,56 @@ def _log():
     return logger
 
 
+def _load_report_whitelist() -> tuple[set, list]:
+    """Load the allowed-report whitelist from AI Assistant Settings.
+
+    Fetches all Report Filter rows for whitelisted reports in a single query
+    (no N+1 loop). Returns a snapshot set of names for O(1) membership checks
+    and a list of rich entry dicts for build_report_tool_definitions().
+
+    Returns:
+        whitelist_names: set of report name strings
+        whitelist_entries: list of dicts {report, description, default_filters, filter_meta}
+    """
+    import json as _json
+
+    settings = frappe.get_cached_doc("AI Assistant Settings", "AI Assistant Settings")
+    rows = [row for row in (settings.allowed_reports or []) if row.report]
+
+    if not rows:
+        return set(), []
+
+    report_names = [row.report for row in rows]
+
+    # Single query — no N+1 (research.md Decision 6)
+    all_filter_meta = frappe.get_all(
+        "Report Filter",
+        filters={"parent": ["in", report_names]},
+        fields=["parent", "fieldname", "label", "fieldtype", "mandatory", "default"],
+    )
+    filters_by_report: dict = {}
+    for f in all_filter_meta:
+        filters_by_report.setdefault(f.parent, []).append(f)
+
+    entries = []
+    names: set = set()
+    for row in rows:
+        default_filters: dict = {}
+        if row.default_filters:
+            try:
+                default_filters = _json.loads(row.default_filters)
+            except Exception:
+                pass  # validated on save; defensive fallback only
+        entries.append({
+            "report": row.report,
+            "description": row.description or "",
+            "default_filters": default_filters,
+            "filter_meta": filters_by_report.get(row.report, []),
+        })
+        names.add(row.report)
+    return names, entries
+
+
 def run_chat_job(message_id: str, session_id: str, user: str, question: str = "", **kwargs):
     """
     Background job entry point. Called by frappe.enqueue (queue="short").
@@ -22,9 +72,10 @@ def run_chat_job(message_id: str, session_id: str, user: str, question: str = ""
 
     message_id kwarg name avoids collision with Frappe/RQ reserved 'job_id' kwarg.
     """
-    from frapperag.rag.retriever      import search_candidates, filter_by_permission
-    from frapperag.rag.prompt_builder import build_messages
-    from frapperag.rag.chat_engine    import generate_response
+    from frapperag.rag.retriever import search_candidates, filter_by_permission
+    from frapperag.rag.prompt_builder import build_messages, build_report_tool_definitions
+    from frapperag.rag.chat_engine import generate_response
+    from frapperag.rag.report_executor import execute_report
 
     job_start = _time.monotonic()
     _log().info(f"[TIMING][{message_id}] run_chat_job START")
@@ -52,6 +103,16 @@ def run_chat_job(message_id: str, session_id: str, user: str, question: str = ""
         t0 = _time.monotonic()
         frappe.db.commit()
         _log().info(f"[TIMING][{message_id}] pre_commit {_time.monotonic() - t0:.3f}s")
+
+        # Load whitelist + build per-report Gemini tool declarations (FR-004, FR-005)
+        t0 = _time.monotonic()
+        whitelist_names, whitelist_entries = _load_report_whitelist()
+        report_tools, slug_to_name = build_report_tool_definitions(whitelist_entries)
+        # report_tools is None when whitelist empty → existing RAG path unchanged (FR-005)
+        _log().info(
+            f"[TIMING][{message_id}] load_whitelist {_time.monotonic() - t0:.3f}s"
+            f" → {len(whitelist_names)} reports, tools={'yes' if report_tools else 'no'}"
+        )
 
         # 1+2. Embed query + search all v3_* tables via sidecar (single HTTP call)
         t0 = _time.monotonic()
@@ -94,15 +155,50 @@ def run_chat_job(message_id: str, session_id: str, user: str, question: str = ""
             f" → {len(messages)} turns, ~{prompt_chars} chars in prompt"
         )
 
-        # 6. Generate response (gemini-2.5-flash)
+        # 6. Generate response (gemini-2.5-flash) — pass tools when whitelist non-empty
         t0 = _time.monotonic()
-        result = generate_response(messages, filtered, api_key)
+        result = generate_response(messages, filtered, api_key, tools=report_tools)
         _log().info(
             f"[TIMING][{message_id}] generate_response {_time.monotonic() - t0:.3f}s"
             f" tokens_used={result['tokens_used']}"
         )
 
+        # Branch on response type (FR-007, FR-008)
+        if "tool_call" in result:
+            tool_name = result["tool_call"]["name"]
+            actual_name = slug_to_name.get(tool_name)
+            if actual_name:
+                # Report execution path
+                t0 = _time.monotonic()
+                report_result = execute_report(
+                    {"report_name": actual_name, "filters": dict(result["tool_call"]["args"])},
+                    user,
+                    whitelist_names,
+                )
+                final_text = report_result["text"]
+                final_citations = report_result["citations"]
+                tokens_used = result["tokens_used"]
+                _log().info(f"[TIMING][{message_id}] execute_report {_time.monotonic() - t0:.3f}s")
+            else:
+                # Unknown slug (should not happen — hallucinated function name)
+                final_text = result.get("text", "")
+                final_citations = result.get("citations", [])
+                tokens_used = result["tokens_used"]
+        else:
+            # Existing RAG path (unchanged)
+            final_text = result["text"]
+            final_citations = result["citations"]
+            tokens_used = result["tokens_used"]
+
         # 7. Update the user's Pending message to Completed (bypass ORM lifecycle)
+        #
+        # RAW SQL COUPLING — `tabChat Message` UPDATE (success path)
+        # Columns written: status, modified, modified_by
+        # Reason for raw SQL: frappe.set_value() acquires an after_load row-lock that
+        # conflicts with the earlier get_all() read; raw SQL avoids the ORM lifecycle
+        # entirely and keeps the write path in a single minimal transaction.
+        # WARNING: If you add fields to chat_message.json that need to be stamped on
+        # completion, you MUST add them to this UPDATE statement as well.
         t0 = _time.monotonic()
         now = now_datetime()
         frappe.db.sql(
@@ -114,6 +210,16 @@ def run_chat_job(message_id: str, session_id: str, user: str, question: str = ""
         _log().info(f"[TIMING][{message_id}] set_value_status {_time.monotonic() - t0:.3f}s")
 
         # 8. Insert assistant reply message (bypass ORM lifecycle)
+        #
+        # RAW SQL COUPLING — `tabChat Message` INSERT (assistant reply)
+        # Columns written (positional, in order):
+        #   name, creation, modified, modified_by, owner, docstatus (0), idx (0),
+        #   session, role, content, citations, status, tokens_used
+        # Reason for raw SQL: frappe.get_doc().insert() triggers after_insert hooks
+        # and realtime events we don't want for internal assistant messages; raw SQL
+        # keeps the insert atomic within the same transaction as the status UPDATE above.
+        # WARNING: If you add fields to chat_message.json that must be populated on
+        # creation, you MUST add them to this INSERT column list and VALUES tuple.
         t0 = _time.monotonic()
         reply_name = frappe.generate_hash(length=10)
         frappe.db.sql(
@@ -123,8 +229,8 @@ def run_chat_job(message_id: str, session_id: str, user: str, question: str = ""
                VALUES (%s, %s, %s, %s, %s, 0, 0, %s, %s, %s, %s, %s, %s)""",
             (
                 reply_name, now, now, user, user,
-                session_id, "assistant", result["text"],
-                json.dumps(result["citations"]), "Completed", result["tokens_used"],
+                session_id, "assistant", final_text,
+                json.dumps(final_citations), "Completed", tokens_used,
             ),
         )
         _log().info(f"[TIMING][{message_id}] reply_insert {_time.monotonic() - t0:.3f}s")
@@ -150,9 +256,9 @@ def run_chat_job(message_id: str, session_id: str, user: str, question: str = ""
                 "message_id":  message_id,
                 "session_id":  session_id,
                 "status":      "Completed",
-                "content":     result["text"],
-                "citations":   result["citations"],
-                "tokens_used": result["tokens_used"],
+                "content":     final_text,
+                "citations":   final_citations,
+                "tokens_used": tokens_used,
             },
             user=user,
             after_commit=False,
@@ -169,6 +275,11 @@ def run_chat_job(message_id: str, session_id: str, user: str, question: str = ""
         _log().error(
             f"[TIMING][{message_id}] run_chat_job FAILED after {_time.monotonic() - job_start:.3f}s"
         )
+        # RAW SQL COUPLING — `tabChat Message` UPDATE (error path)
+        # Columns written: status, error_detail, modified, modified_by
+        # See step 7 above for why raw SQL is used instead of the ORM.
+        # WARNING: If you add error-state fields to chat_message.json, update this
+        # UPDATE statement to include them.
         frappe.db.sql(
             """UPDATE `tabChat Message`
                SET status = %s, error_detail = %s, modified = %s, modified_by = %s

@@ -9,6 +9,7 @@ A Retrieval-Augmented Generation (RAG) assistant for Frappe / ERPNext. FrappeRAG
 - **Incremental sync** — Frappe `doc_events` hooks (`on_update`, `after_rename`, `on_trash`) automatically keep the vector index in sync with every save, rename, or delete for whitelisted DocTypes.
 - **Bulk indexing** — RAG Index Manager page lets RAG Admins trigger a full re-index of any whitelisted DocType, with real-time progress updates via `frappe.realtime`.
 - **Chat interface** — Vanilla JS chat page (`/rag-chat`) backed by Google Gemini 2.5 Flash with multi-turn conversation history and per-source citations.
+- **Report execution** — Gemini can call whitelisted Report Builder reports as tools; results are rendered as formatted tables inside the chat thread with a 50-row cap.
 - **Permission-aware retrieval** — every candidate record is filtered through `frappe.has_permission` before it can be included in a prompt or a chat response.
 - **Roles** — two fixtures (`RAG Admin`, `RAG User`) control access. System Managers always have full access.
 
@@ -44,6 +45,7 @@ apps/frapperag/frapperag/
 │   ├── ai_assistant_settings/      # Single DocType — API key, whitelist, roles, sidecar port
 │   ├── rag_allowed_doctype/        # Child table — whitelisted DocTypes
 │   ├── rag_allowed_role/           # Child table — roles allowed to chat
+│   ├── rag_allowed_report/         # Child table — whitelisted Report Builder reports
 │   ├── ai_indexing_job/            # Bulk index job tracking (status, progress, counters)
 │   ├── chat_session/               # Chat session (Open / Archived)
 │   ├── chat_message/               # Individual message (user / assistant, Pending / Completed / Failed)
@@ -51,12 +53,13 @@ apps/frapperag/frapperag/
 ├── rag/
 │   ├── base_indexer.py             # BaseIndexer ABC (validate → check_permission → execute)
 │   ├── sidecar_client.py           # httpx wrappers for every sidecar endpoint
-│   ├── text_converter.py           # DocType → deterministic human-readable text (Sales Invoice, Customer, Item)
+│   ├── text_converter.py           # DocType → deterministic human-readable text (11 ERPNext DocTypes)
 │   ├── indexer.py                  # DocIndexerTool + run_indexing_job() + mark_stalled_jobs()
 │   ├── retriever.py                # search_candidates() + filter_by_permission()
-│   ├── prompt_builder.py           # build_messages() → Gemini conversation list
-│   ├── chat_engine.py              # generate_response() via sidecar /chat
-│   ├── chat_runner.py              # run_chat_job() + mark_stalled_chat_messages()
+│   ├── prompt_builder.py           # build_messages() + build_report_tool_definitions() → Gemini tool list
+│   ├── chat_engine.py              # generate_response() via sidecar /chat (supports function calling)
+│   ├── chat_runner.py              # run_chat_job() + _load_report_whitelist() + tool_call dispatch
+│   ├── report_executor.py          # execute_report() — 3-layer permission check + Report Builder execution
 │   ├── sync_hooks.py               # on_document_save/rename/trash doc_events handlers
 │   └── sync_runner.py              # run_sync_job() + run_purge_job() + mark_stalled_sync_jobs() + prune_sync_event_log()
 ├── api/
@@ -99,7 +102,7 @@ bench --site <site> migrate
 
 1. Open **AI Assistant Settings** in Frappe Desk (System Manager or RAG Admin).
 2. Enter your **Gemini API Key**.
-3. Add the DocTypes you want indexed to **Allowed Document Types** (currently supported: `Customer`, `Item`, `Sales Invoice`).
+3. Add the DocTypes you want indexed to **Allowed Document Types** (11 supported — see Supported DocTypes below).
 4. Add the roles that may use the chat to **Allowed Roles** (default: `RAG User`).
 5. Optionally adjust **Sidecar Port** (default: `8100`).
 
@@ -187,13 +190,35 @@ The sidecar runs on `localhost` only and is not exposed to the internet.
 
 ## Supported DocTypes
 
-Out of the box, FrappeRAG converts the following DocTypes to text for indexing:
+FrappeRAG converts the following 11 ERPNext DocTypes to text for indexing:
 
-- **Customer** — name, type, group, territory, email, outstanding amount
-- **Item** — item name, group, UOM, standard rate, description, stock flag
-- **Sales Invoice** — invoice number, date, customer, grand total, due date, line items, outstanding amount
+| DocType | Key fields indexed |
+|---|---|
+| **Customer** | name, type, group, territory, email, outstanding amount |
+| **Item** | item name, group, UOM, standard rate, description, stock flag |
+| **Sales Invoice** | invoice number, date, customer, grand total, due date, line items, outstanding amount |
+| **Purchase Invoice** | bill number, date, supplier, grand total, bill date, status, line items |
+| **Sales Order** | order number, date, customer, grand total, delivery date, status, line items |
+| **Purchase Order** | order number, date, supplier, grand total, schedule date, status, line items |
+| **Delivery Note** | DN number, date, customer, posting date, status, line items |
+| **Purchase Receipt** | PR number, date, supplier, posting date, status, line items |
+| **Item Price** | item code, price list, currency, rate, effective dates |
+| **Stock Entry** | entry number, type, posting date, source/target warehouse, line items |
+| **Supplier** | supplier name, type, group, country, email, outstanding amount |
 
-To add support for more DocTypes, extend [frapperag/rag/text_converter.py](frapperag/rag/text_converter.py) with a new converter function and register the DocType in `SUPPORTED_DOCTYPES`, then add it to the allowed list in **AI Assistant Settings**.
+To add more DocTypes, extend [frapperag/rag/text_converter.py](frapperag/rag/text_converter.py) with a converter function and register the DocType in `SUPPORTED_DOCTYPES`, then add it to the allowed list in **AI Assistant Settings**.
+
+## Report Execution (Phase 5)
+
+Administrators can whitelist **Report Builder** reports in **AI Assistant Settings → Allowed Reports**. When a user's question is best answered by running a report, Gemini selects the appropriate report as a tool call and FrappeRAG:
+
+1. Validates the report name against the whitelist (guards against hallucinated names).
+2. Confirms `report_type == "Report Builder"` at runtime.
+3. Checks `frappe.has_permission` for the calling user.
+4. Executes `report_doc.get_data(filters=..., limit=50)`.
+5. Returns a `report_result` citation rendered as a formatted table in the chat UI (50-row cap with truncation note).
+
+Each whitelisted report entry supports an optional `description` (fed to Gemini as the tool description) and `default_filters` (JSON, pre-populated as tool argument defaults).
 
 ## Contributing
 

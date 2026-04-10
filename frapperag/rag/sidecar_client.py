@@ -133,6 +133,7 @@ def chat(
     messages: list,
     api_key: str,
     model: str = "gemini-2.5-flash",
+    tools: list | None = None,
     port: int | None = None,
 ) -> dict:
     """POST /chat — call Gemini via the sidecar with a pre-assembled message list.
@@ -143,6 +144,8 @@ def chat(
     `messages` is a list of {role, parts} dicts (the full conversation history
     including the final user turn).
 
+    Accepts an optional tools list (list of function-declaration dicts) passed through to the sidecar.
+
     Returns {"text": str, "tokens_used": int}.
     Raises SidecarError on HTTP error, connection failure, or timeout (120s to
     allow for the sidecar's internal 60s rate-limit retry).
@@ -151,6 +154,8 @@ def chat(
 
     url = f"{_base_url(port)}/chat"
     payload = {"messages": messages, "api_key": api_key, "model": model}
+    if tools:
+        payload["tools"] = tools
     try:
         response = httpx.post(url, json=payload, timeout=120.0)
         response.raise_for_status()

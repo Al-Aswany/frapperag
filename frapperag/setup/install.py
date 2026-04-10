@@ -19,14 +19,47 @@ def _ensure_existing_lancedb_indices(rag_path: str) -> None:
     existing tables benefit from ANN search immediately.
     """
     import lancedb
-    from frapperag.rag.lancedb_store import _ensure_vector_index
+    _log = frappe.logger("frapperag", allow_site=True)
     try:
         db = lancedb.connect(rag_path)
         for table_name in db.table_names():
             if not table_name.startswith("v1_"):
                 continue
             try:
-                _ensure_vector_index(db.open_table(table_name))
+                table = db.open_table(table_name)
+                # Check for existing vector index before creating one.
+                try:
+                    indices = table.list_indices()
+                    for idx in indices:
+                        cols = getattr(idx, "columns", None) or []
+                        if "vector" in cols:
+                            continue  # already indexed — skip
+                except Exception as exc:
+                    _log.warning(f"[INDEX] {table_name}: list_indices() failed ({exc}) — skipping")
+                    continue
+
+                row_count = table.count_rows()
+                if row_count < 256:
+                    continue  # flat scan is faster; IVF_PQ needs enough rows to train
+
+                num_partitions = min(256, max(1, row_count // 10))
+                _log.info(
+                    f"[INDEX] {table_name}: building IVF_PQ index"
+                    f" ({row_count} rows, {num_partitions} partitions)"
+                )
+                try:
+                    table.create_index(
+                        metric="cosine",
+                        vector_column_name="vector",
+                        num_partitions=num_partitions,
+                        num_sub_vectors=96,
+                        replace=False,
+                    )
+                    _log.info(f"[INDEX] {table_name}: IVF_PQ index ready")
+                except Exception as exc:
+                    _log.warning(
+                        f"[INDEX] {table_name}: create_index failed ({exc}) — falling back to flat scan"
+                    )
             except Exception:
                 pass  # best-effort per table
     except Exception:
