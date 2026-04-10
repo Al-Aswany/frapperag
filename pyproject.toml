@@ -4,7 +4,7 @@ authors = [
     { name = "Mahmoud Hussein", email = "mahmudhussain2001ab@gmail.com"}
 ]
 description = "app for Frappe AI Assist"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 readme = "README.md"
 dynamic = ["version"]
 dependencies = [
