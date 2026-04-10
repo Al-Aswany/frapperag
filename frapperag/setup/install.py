@@ -3,7 +3,7 @@ import frappe
 
 
 def after_install():
-    rag_path = frappe.get_site_path("private", "files", "rag")
+    rag_path = os.path.join(frappe.utils.get_bench_path(), "rag")
     os.makedirs(rag_path, exist_ok=True)
     _ensure_existing_lancedb_indices(rag_path)
     _ensure_sidecar_procfile_entry()
