@@ -94,8 +94,11 @@ def _retry_call(fn, *args, **kwargs):
                     delay *= multiplier
                     continue
                 else:
+                    target = args[0] if args else "unknown"
                     raise SidecarUnavailableError(
-                        f"Sidecar unavailable after {max_attempts} retries (HTTP {sc})"
+                        f"Sidecar unavailable after {max_attempts} retries"
+                        f" ({target} → HTTP {sc})"
+                        " — check rag_sidecar logs."
                     )
             elif 400 <= sc < 500:
                 # Permanent client error — do not retry
@@ -119,11 +122,33 @@ def _retry_call(fn, *args, **kwargs):
                 time.sleep(delay)
                 delay *= multiplier
             else:
+                target = args[0] if args else "unknown"
                 raise SidecarUnavailableError(
-                    f"Sidecar unavailable after {max_attempts} retries"
+                    f"Sidecar unavailable after {max_attempts} retries ({target})"
+                    " — is rag_sidecar running? Check `bench start` logs."
                 ) from exc
         except (SidecarUnavailableError, SidecarPermanentError, SidecarError):
             raise
+
+
+def health_check(port: int | None = None) -> dict:
+    """GET /health — non-raising liveness probe.
+
+    Returns {"ok": bool, "url": str, "detail": str | None}.
+    Never raises; always returns a dict so callers can surface the result directly.
+    """
+    import httpx
+
+    url = f"{_base_url(port)}/health"
+    try:
+        r = httpx.get(url, timeout=5.0)
+        if r.status_code == 200:
+            return {"ok": True, "url": url, "detail": None}
+        return {"ok": False, "url": url, "detail": f"HTTP {r.status_code}: {r.text[:200]}"}
+    except (httpx.ConnectError, httpx.TimeoutException) as exc:
+        return {"ok": False, "url": url, "detail": f"{type(exc).__name__} — is rag_sidecar running? Check `bench start` logs."}
+    except Exception as exc:
+        return {"ok": False, "url": url, "detail": str(exc)}
 
 
 def search(

@@ -137,5 +137,7 @@ def seed_allowed_doctypes() -> None:
             settings.append("allowed_doctypes", {"doctype_name": dt})
             changed = True
     if changed:
+        settings.flags.ignore_validate = True
+        settings.flags.ignore_mandatory = True
         settings.save(ignore_permissions=True)
         frappe.db.commit()

@@ -69,13 +69,29 @@ def execute_report(
         ]
 
         # Normalise rows: Frappe may return list-of-dicts or list-of-lists (FR-013)
+        # Cell values are coerced to JSON-safe types: date/datetime → ISO string,
+        # Decimal → float, everything else → str if not already a JSON primitive.
+        import datetime
+        from decimal import Decimal
+
+        _json_primitives = (type(None), bool, int, float, str)
+
+        def _safe(v):
+            if isinstance(v, _json_primitives):
+                return v
+            if isinstance(v, (datetime.datetime, datetime.date)):
+                return v.isoformat()
+            if isinstance(v, Decimal):
+                return float(v)
+            return str(v)
+
         fieldnames = [col.get("fieldname", "") for col in (columns or [])]
         rows = []
         for row in (result or []):
             if isinstance(row, dict):
-                rows.append([row.get(fn) for fn in fieldnames])
+                rows.append([_safe(row.get(fn)) for fn in fieldnames])
             else:
-                rows.append(list(row))
+                rows.append([_safe(v) for v in row])
 
         row_count = len(rows)  # true count before cap (FR-014)
         rows = rows[:50]  # enforce 50-row display cap

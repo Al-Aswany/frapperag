@@ -169,6 +169,18 @@ def get_sync_health() -> dict:
 
 
 @frappe.whitelist()
+def sidecar_health() -> dict:
+    """Liveness probe for the RAG sidecar. Requires RAG Admin or System Manager.
+
+    Returns {"ok": bool, "url": str, "detail": str | None}.
+    Never raises — safe to call from the admin UI before starting a job.
+    """
+    _require_rag_admin()
+    from frapperag.rag.sidecar_client import health_check
+    return health_check()
+
+
+@frappe.whitelist()
 def retry_sync(sync_log_id: str) -> dict:
     """Re-queue a failed sync attempt. Creates a new Sync Event Log entry; original preserved."""
     _require_rag_admin()
