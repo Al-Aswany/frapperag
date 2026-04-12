@@ -94,6 +94,16 @@ bench --site <site> install-app frapperag
 bench --site <site> migrate
 ```
 
+> **PyTorch (CPU-only)** — `requirements.txt` cannot force pip to use the CPU wheel index, so install torch separately before the rest of the dependencies:
+>
+> ```bash
+> # Run these from your bench's Python environment
+> ./env/bin/pip install torch --index-url https://download.pytorch.org/whl/cpu
+> ./env/bin/pip install -r apps/frapperag/frapperag/requirements.txt
+> ```
+>
+> Omitting the first step causes pip to pull the default (CUDA) wheel, which is ~2 GB and unnecessary on CPU-only servers.
+
 `after_install` automatically:
 1. Creates the bench-level `rag/` directory for LanceDB data.
 2. Appends a `rag_sidecar:` entry to the bench `Procfile`.
