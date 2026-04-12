@@ -191,6 +191,70 @@ def _execute_top_selling_items(params: dict, user: str) -> dict:
     return {"text": text, "citations": [citation], "tokens_used": 0}
 
 
+def _execute_best_selling_pairs(params: dict, user: str) -> dict:
+    """Find pairs of items most frequently bought together in the same Sales Invoice."""
+    import datetime as _dt
+
+    top_n = _validate_int(params.get("top_n"), name="top_n", default=10, minimum=1, maximum=50)
+
+    today = _dt.date.today()
+    default_from = (today.replace(year=today.year - 1) if today.month != 2 or today.day != 29
+                    else today.replace(year=today.year - 1, day=28)).isoformat()
+    from_date = (params.get("from_date") or default_from).strip()
+    to_date = (params.get("to_date") or today.isoformat()).strip()
+
+    # Self-join: a.item_code < b.item_code ensures each unordered pair counted once.
+    # date filter on the parent SI guards query cost on large datasets.
+    rows = frappe.db.sql(
+        """
+        SELECT
+            a.item_code  AS item_a,
+            a.item_name  AS item_a_name,
+            b.item_code  AS item_b,
+            b.item_name  AS item_b_name,
+            COUNT(*)     AS times_sold_together
+        FROM `tabSales Invoice Item` a
+        JOIN `tabSales Invoice Item` b
+          ON a.parent = b.parent AND a.item_code < b.item_code
+        JOIN `tabSales Invoice` si ON si.name = a.parent
+        WHERE si.docstatus = 1
+          AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
+        GROUP BY a.item_code, b.item_code
+        ORDER BY times_sold_together DESC
+        LIMIT %(top_n)s
+        """,
+        {"from_date": from_date, "to_date": to_date, "top_n": top_n},
+        as_dict=True,
+    )
+
+    if not rows:
+        return _error(
+            f"No co-purchase data found between {from_date} and {to_date}. "
+            "This may mean no Sales Invoice contained more than one item in that period."
+        )
+
+    columns = ["Item A", "Item A Name", "Item B", "Item B Name", "Times Sold Together"]
+    safe_rows = [
+        [_safe(r["item_a"]), _safe(r["item_a_name"]),
+         _safe(r["item_b"]), _safe(r["item_b_name"]),
+         _safe(r["times_sold_together"])]
+        for r in rows
+    ]
+
+    text = (
+        f"Here are the top {len(rows)} item pairs most frequently sold together "
+        f"from {from_date} to {to_date}:"
+    )
+    citation = {
+        "type": "query_result",
+        "template": "best_selling_pairs",
+        "columns": columns,
+        "rows": safe_rows,
+        "row_count": len(safe_rows),
+    }
+    return {"text": text, "citations": [citation], "tokens_used": 0}
+
+
 # ---------------------------------------------------------------------------
 # Template registry
 # ---------------------------------------------------------------------------
@@ -263,6 +327,35 @@ QUERY_TEMPLATES: dict = {
             },
         },
         "execute": _execute_top_selling_items,
+        "permission_doctypes": ["Sales Invoice"],
+    },
+
+    "best_selling_pairs": {
+        "description": (
+            "Find pairs of items that are most frequently purchased together in the "
+            "same Sales Invoice. Use this when the user asks about items bought "
+            "together, product bundles, or co-purchase patterns "
+            "(e.g. 'What are the top 2 items sold together?', "
+            "'Which items are commonly bought together?')."
+        ),
+        "parameters": {
+            "top_n": {
+                "type": "NUMBER",
+                "description": "How many item pairs to return (default 10, max 50).",
+                "required": False,
+            },
+            "from_date": {
+                "type": "STRING",
+                "description": "Start of date range (ISO date: YYYY-MM-DD). Default: 12 months ago.",
+                "required": False,
+            },
+            "to_date": {
+                "type": "STRING",
+                "description": "End of date range (ISO date: YYYY-MM-DD). Default: today.",
+                "required": False,
+            },
+        },
+        "execute": _execute_best_selling_pairs,
         "permission_doctypes": ["Sales Invoice"],
     },
 }
