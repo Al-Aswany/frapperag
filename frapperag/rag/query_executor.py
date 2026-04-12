@@ -255,6 +255,73 @@ def _execute_best_selling_pairs(params: dict, user: str) -> dict:
     return {"text": text, "citations": [citation], "tokens_used": 0}
 
 
+def _execute_low_stock_recent_sales(params: dict, user: str) -> dict:
+    """Items sold recently that are now low or out of stock."""
+    import datetime as _dt
+
+    months = _validate_int(params.get("months"), name="months", default=6, minimum=1, maximum=12)
+    top_n  = _validate_int(params.get("top_n"),  name="top_n",  default=10, minimum=1, maximum=50)
+
+    today     = _dt.date.today()
+    from_date = (today - _dt.timedelta(days=months * 30)).isoformat()
+    to_date   = today.isoformat()
+
+    # LEFT JOIN tabBin so items with no bin row (never stocked) also appear.
+    # COALESCE handles NULL actual_qty from missing bin rows.
+    # SUM(sii.qty) is the total sold in the window — used for urgency ordering.
+    rows = frappe.db.sql(
+        """
+        SELECT
+            sii.item_code,
+            MAX(sii.item_name)             AS item_name,
+            SUM(sii.qty)                   AS qty_sold,
+            COALESCE(SUM(b.actual_qty), 0) AS current_stock
+        FROM `tabSales Invoice Item` sii
+        JOIN `tabSales Invoice` si ON si.name = sii.parent
+        LEFT JOIN `tabBin` b ON b.item_code = sii.item_code
+        WHERE si.docstatus = 1
+          AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
+        GROUP BY sii.item_code
+        HAVING current_stock < qty_sold
+        ORDER BY (qty_sold - current_stock) DESC
+        LIMIT %(top_n)s
+        """,
+        {"from_date": from_date, "to_date": to_date, "top_n": top_n},
+        as_dict=True,
+    )
+
+    if not rows:
+        return _error(
+            f"No low-stock items found for the last {months} month(s). "
+            "Either stock levels are sufficient or no Sales Invoices exist in that period."
+        )
+
+    columns = ["Item Code", "Item Name", "Qty Sold (Period)", "Current Stock", "Shortfall"]
+    safe_rows = [
+        [
+            _safe(r["item_code"]),
+            _safe(r["item_name"]),
+            _safe(r["qty_sold"]),
+            _safe(r["current_stock"]),
+            _safe(float(r["qty_sold"] or 0) - float(r["current_stock"] or 0)),
+        ]
+        for r in rows
+    ]
+
+    text = (
+        f"Here are the top {len(rows)} items sold in the last {months} month(s) "
+        f"that are now low or out of stock (sorted by shortfall):"
+    )
+    citation = {
+        "type": "query_result",
+        "template": "low_stock_recent_sales",
+        "columns": columns,
+        "rows": safe_rows,
+        "row_count": len(safe_rows),
+    }
+    return {"text": text, "citations": [citation], "tokens_used": 0}
+
+
 # ---------------------------------------------------------------------------
 # Template registry
 # ---------------------------------------------------------------------------
@@ -357,6 +424,31 @@ QUERY_TEMPLATES: dict = {
         },
         "execute": _execute_best_selling_pairs,
         "permission_doctypes": ["Sales Invoice"],
+    },
+
+    "low_stock_recent_sales": {
+        "description": (
+            "Find items that were sold recently but are now low or out of stock — "
+            "ranked by shortfall (qty sold minus current stock). Use this when the "
+            "user asks about missing stock, items running out, reorder urgency, or "
+            "products that need restocking "
+            "(e.g. 'What are the top 10 missing items from the last 6 months of sales?', "
+            "'Which items are out of stock but still selling?')."
+        ),
+        "parameters": {
+            "months": {
+                "type": "NUMBER",
+                "description": "How many months of sales history to look back (default 6, max 12).",
+                "required": False,
+            },
+            "top_n": {
+                "type": "NUMBER",
+                "description": "How many items to return (default 10, max 50).",
+                "required": False,
+            },
+        },
+        "execute": _execute_low_stock_recent_sales,
+        "permission_doctypes": ["Sales Invoice", "Stock Entry"],
     },
 }
 
