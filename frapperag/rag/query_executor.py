@@ -126,6 +126,71 @@ def _execute_record_lookup(params: dict, user: str) -> dict:
     return {"text": narrative, "citations": [citation], "tokens_used": 0}
 
 
+def _execute_top_selling_items(params: dict, user: str) -> dict:
+    """Return the top-N items by quantity or revenue across submitted Sales Invoices."""
+    import datetime as _dt
+
+    top_n = _validate_int(params.get("top_n"), name="top_n", default=10, minimum=1, maximum=50)
+    sort_by = params.get("sort_by", "qty")
+    if sort_by not in ("qty", "amount"):
+        sort_by = "qty"
+
+    # Resolve date range — default: last 12 months
+    today = _dt.date.today()
+    default_from = (today.replace(year=today.year - 1) if today.month != 2 or today.day != 29
+                    else today.replace(year=today.year - 1, day=28)).isoformat()
+    from_date = (params.get("from_date") or default_from).strip()
+    to_date = (params.get("to_date") or today.isoformat()).strip()
+
+    order_col = "total_qty" if sort_by == "qty" else "total_amount"
+
+    rows = frappe.db.sql(
+        f"""
+        SELECT
+            sii.item_code,
+            sii.item_name,
+            SUM(sii.qty)    AS total_qty,
+            SUM(sii.amount) AS total_amount
+        FROM `tabSales Invoice Item` sii
+        JOIN `tabSales Invoice` si ON si.name = sii.parent
+        WHERE si.docstatus = 1
+          AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
+        GROUP BY sii.item_code, sii.item_name
+        ORDER BY {order_col} DESC
+        LIMIT %(top_n)s
+        """,
+        {"from_date": from_date, "to_date": to_date, "top_n": top_n},
+        as_dict=True,
+    )
+
+    if not rows:
+        return _error(
+            f"No sales data found between {from_date} and {to_date}. "
+            "Check that Sales Invoices have been submitted in that date range."
+        )
+
+    columns = ["Item Code", "Item Name", "Total Qty Sold", "Total Revenue"]
+    safe_rows = [
+        [_safe(r["item_code"]), _safe(r["item_name"]),
+         _safe(r["total_qty"]), _safe(r["total_amount"])]
+        for r in rows
+    ]
+
+    sort_label = "quantity" if sort_by == "qty" else "revenue"
+    text = (
+        f"Here are the top {len(rows)} selling items by {sort_label} "
+        f"from {from_date} to {to_date}:"
+    )
+    citation = {
+        "type": "query_result",
+        "template": "top_selling_items",
+        "columns": columns,
+        "rows": safe_rows,
+        "row_count": len(safe_rows),
+    }
+    return {"text": text, "citations": [citation], "tokens_used": 0}
+
+
 # ---------------------------------------------------------------------------
 # Template registry
 # ---------------------------------------------------------------------------
@@ -166,6 +231,39 @@ QUERY_TEMPLATES: dict = {
         },
         "execute": _execute_record_lookup,
         "permission_doctypes": None,  # checked dynamically inside _execute_record_lookup
+    },
+
+    "top_selling_items": {
+        "description": (
+            "Return the top-selling items ranked by quantity sold or total revenue "
+            "across submitted Sales Invoices. Use this when the user asks about "
+            "best-selling products, top items by sales, or most popular items "
+            "(e.g. 'What are the top 10 selling items?', 'Which items sell the most?')."
+        ),
+        "parameters": {
+            "top_n": {
+                "type": "NUMBER",
+                "description": "How many items to return (default 10, max 50).",
+                "required": False,
+            },
+            "sort_by": {
+                "type": "STRING",
+                "description": "Rank by 'qty' (quantity sold) or 'amount' (revenue). Default: 'qty'.",
+                "required": False,
+            },
+            "from_date": {
+                "type": "STRING",
+                "description": "Start of date range (ISO date: YYYY-MM-DD). Default: 12 months ago.",
+                "required": False,
+            },
+            "to_date": {
+                "type": "STRING",
+                "description": "End of date range (ISO date: YYYY-MM-DD). Default: today.",
+                "required": False,
+            },
+        },
+        "execute": _execute_top_selling_items,
+        "permission_doctypes": ["Sales Invoice"],
     },
 }
 
