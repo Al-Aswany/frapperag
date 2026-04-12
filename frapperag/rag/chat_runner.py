@@ -231,7 +231,7 @@ def run_chat_job(message_id: str, session_id: str, user: str, question: str = ""
             (
                 reply_name, now, now, user, user,
                 session_id, "assistant", final_text,
-                json.dumps(final_citations), "Completed", tokens_used,
+                json.dumps(final_citations, default=str), "Completed", tokens_used,
             ),
         )
         _log().info(f"[TIMING][{message_id}] reply_insert {_time.monotonic() - t0:.3f}s")
