@@ -73,9 +73,10 @@ def run_chat_job(message_id: str, session_id: str, user: str, question: str = ""
     message_id kwarg name avoids collision with Frappe/RQ reserved 'job_id' kwarg.
     """
     from frapperag.rag.retriever import search_candidates, filter_by_permission
-    from frapperag.rag.prompt_builder import build_messages, build_report_tool_definitions
+    from frapperag.rag.prompt_builder import build_messages, build_report_tool_definitions, build_query_tool_definitions
     from frapperag.rag.chat_engine import generate_response
     from frapperag.rag.report_executor import execute_report
+    from frapperag.rag.query_executor import execute_query
 
     job_start = _time.monotonic()
     _log().info(f"[CHAT_START] message_id={message_id} session_id={session_id} user={user}")
@@ -109,10 +110,15 @@ def run_chat_job(message_id: str, session_id: str, user: str, question: str = ""
         t0 = _time.monotonic()
         whitelist_names, whitelist_entries = _load_report_whitelist()
         report_tools, slug_to_name = build_report_tool_definitions(whitelist_entries)
-        # report_tools is None when whitelist empty → existing RAG path unchanged (FR-005)
+        query_tools, slug_to_template = build_query_tool_definitions()
+        # Slug collision guard — execute_* and run_* prefixes must never overlap
+        _slug_overlap = slug_to_name.keys() & slug_to_template.keys()
+        assert not _slug_overlap, f"Tool slug collision detected: {_slug_overlap}"
+        # Merge both tool lists; handle all four None combinations
+        all_tools = (report_tools or []) + (query_tools or []) or None
         _log().info(
             f"[TIMING][{message_id}] load_whitelist {_time.monotonic() - t0:.3f}s"
-            f" → {len(whitelist_names)} reports, tools={'yes' if report_tools else 'no'}"
+            f" → {len(whitelist_names)} reports, tools={'yes' if all_tools else 'no'}"
         )
 
         # 1+2. Embed query + search all v3_* tables via sidecar (single HTTP call)
@@ -158,7 +164,7 @@ def run_chat_job(message_id: str, session_id: str, user: str, question: str = ""
 
         # 6. Generate response (gemini-2.5-flash) — pass tools when whitelist non-empty
         t0 = _time.monotonic()
-        result = generate_response(messages, filtered, api_key, tools=report_tools)
+        result = generate_response(messages, filtered, api_key, tools=all_tools)
         _log().info(
             f"[TIMING][{message_id}] generate_response {_time.monotonic() - t0:.3f}s"
             f" tokens_used={result['tokens_used']}"
@@ -167,12 +173,11 @@ def run_chat_job(message_id: str, session_id: str, user: str, question: str = ""
         # Branch on response type (FR-007, FR-008)
         if "tool_call" in result:
             tool_name = result["tool_call"]["name"]
-            actual_name = slug_to_name.get(tool_name)
-            if actual_name:
-                # Report execution path
+            if tool_name in slug_to_name:
+                # Report execution path (existing)
                 t0 = _time.monotonic()
                 report_result = execute_report(
-                    {"report_name": actual_name, "filters": dict(result["tool_call"]["args"])},
+                    {"report_name": slug_to_name[tool_name], "filters": dict(result["tool_call"]["args"])},
                     user,
                     whitelist_names,
                 )
@@ -180,6 +185,17 @@ def run_chat_job(message_id: str, session_id: str, user: str, question: str = ""
                 final_citations = report_result["citations"]
                 tokens_used = result["tokens_used"]
                 _log().info(f"[TIMING][{message_id}] execute_report {_time.monotonic() - t0:.3f}s")
+            elif tool_name in slug_to_template:
+                # Query execution path (new — ExecuteQuery tool)
+                t0 = _time.monotonic()
+                query_result = execute_query(
+                    {"template": slug_to_template[tool_name], "params": dict(result["tool_call"]["args"])},
+                    user,
+                )
+                final_text = query_result["text"]
+                final_citations = query_result["citations"]
+                tokens_used = result["tokens_used"]
+                _log().info(f"[TIMING][{message_id}] execute_query {_time.monotonic() - t0:.3f}s")
             else:
                 # Unknown slug (should not happen — hallucinated function name)
                 final_text = result.get("text", "")

@@ -123,3 +123,50 @@ def build_report_tool_definitions(
         })
 
     return tool_list, slug_to_name
+
+
+def build_query_tool_definitions() -> tuple[list | None, dict]:
+    """Build one Gemini function-declaration dict per registered query template.
+
+    Returns:
+        tool_list        — list of tool dicts (same shape as build_report_tool_definitions);
+                           None when QUERY_TEMPLATES is empty.
+        slug_to_template — {"execute_record_lookup": "record_lookup", …}
+    """
+    from frapperag.rag.query_executor import QUERY_TEMPLATES
+
+    if not QUERY_TEMPLATES:
+        return None, {}
+
+    tool_list = []
+    slug_to_template = {}
+
+    for key, template in QUERY_TEMPLATES.items():
+        slug = "execute_" + key
+        slug_to_template[slug] = key
+
+        params_schema = template.get("parameters") or {}
+        properties: dict = {}
+        required: list = []
+
+        for param_name, param_def in params_schema.items():
+            properties[param_name] = {
+                "type": param_def.get("type", "STRING"),
+                "description": param_def.get("description", ""),
+            }
+            if param_def.get("required"):
+                required.append(param_name)
+
+        tool_list.append({
+            "function_declarations": [{
+                "name": slug,
+                "description": template.get("description", f"Execute the {key} query."),
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": properties,
+                    "required": required,
+                },
+            }]
+        })
+
+    return tool_list, slug_to_template
