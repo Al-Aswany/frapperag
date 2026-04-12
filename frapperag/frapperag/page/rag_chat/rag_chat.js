@@ -94,6 +94,10 @@ frappe.pages["rag-chat"].on_page_load = function(wrapper) {
             cites.forEach(function(c) {
                 if (c.type === "report_result") {
                     render_report_result(c, wrapper);
+                } else if (c.type === "query_result") {
+                    render_query_result(c, wrapper);
+                } else if (c.type === "record_detail") {
+                    render_record_detail(c, wrapper);
                 } else {
                     // Existing doc-link behaviour (type === "doc" or type absent)
                     var a = document.createElement("a");
@@ -176,6 +180,124 @@ frappe.pages["rag-chat"].on_page_load = function(wrapper) {
             note.textContent = "Showing " + rowsShown + " of " + c.row_count + " rows.";
             wrapper.appendChild(note);
         }
+
+        container.appendChild(wrapper);
+    }
+
+    function render_query_result(c, container) {
+        // Same table shape as render_report_result — columns + rows + optional truncation note.
+        // No redundant heading: the assistant narrative already describes the query.
+        var wrapper = document.createElement("div");
+        wrapper.style.marginTop = "8px";
+        wrapper.style.overflowX = "auto";
+
+        var table = document.createElement("table");
+        table.style.borderCollapse = "collapse";
+        table.style.width          = "100%";
+        table.style.fontSize       = "11px";
+
+        var thead = document.createElement("thead");
+        var headerRow = document.createElement("tr");
+        (c.columns || []).forEach(function(col) {
+            var th = document.createElement("th");
+            th.style.borderBottom = "1px solid #ccc";
+            th.style.padding      = "3px 6px";
+            th.style.textAlign    = "left";
+            th.style.whiteSpace   = "nowrap";
+            th.textContent = String(col);
+            headerRow.appendChild(th);
+        });
+        thead.appendChild(headerRow);
+        table.appendChild(thead);
+
+        var tbody = document.createElement("tbody");
+        (c.rows || []).forEach(function(row) {
+            var tr = document.createElement("tr");
+            (row || []).forEach(function(cell) {
+                var td = document.createElement("td");
+                td.style.padding      = "2px 6px";
+                td.style.borderBottom = "1px solid #eee";
+                td.textContent = (cell === null || cell === undefined) ? "" : String(cell);
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        wrapper.appendChild(table);
+
+        var rowsShown = (c.rows || []).length;
+        if (c.row_count > rowsShown) {
+            var note = document.createElement("p");
+            note.style.color     = "#888";
+            note.style.marginTop = "4px";
+            note.style.fontSize  = "11px";
+            note.textContent = "Showing " + rowsShown + " of " + c.row_count + " rows.";
+            wrapper.appendChild(note);
+        }
+
+        container.appendChild(wrapper);
+    }
+
+    function render_record_detail(c, container) {
+        // Key-value card for a single Frappe document.
+        // Skips null/empty/array values and frappe meta fields.
+        var META = {
+            doctype:1, owner:1, creation:1, modified:1, modified_by:1,
+            docstatus:1, idx:1, parent:1, parenttype:1, parentfield:1, amended_from:1,
+        };
+
+        var wrapper = document.createElement("div");
+        wrapper.style.marginTop  = "8px";
+        wrapper.style.fontSize   = "11px";
+        wrapper.style.overflowX  = "auto";
+
+        // Heading: linked doctype + name
+        var heading = document.createElement("p");
+        heading.style.fontWeight   = "600";
+        heading.style.marginBottom = "4px";
+        var link = document.createElement("a");
+        link.href        = "/app/" + frappe.router.slug(c.doctype) + "/" + c.name;
+        link.target      = "_blank";
+        link.style.color = "#5e64ff";
+        link.textContent = frappe.utils.escape_html(c.doctype) + ": "
+                         + frappe.utils.escape_html(c.name);
+        heading.appendChild(link);
+        wrapper.appendChild(heading);
+
+        // Field table
+        var table = document.createElement("table");
+        table.style.borderCollapse = "collapse";
+        table.style.width          = "100%";
+
+        var tbody = document.createElement("tbody");
+        var fields = c.fields || {};
+        Object.keys(fields).forEach(function(key) {
+            if (META[key] || key.startsWith("_")) return;
+            var val = fields[key];
+            if (val === null || val === undefined || val === "") return;
+            if (Array.isArray(val) || (typeof val === "object")) return;
+
+            var tr = document.createElement("tr");
+            var tdKey = document.createElement("td");
+            tdKey.style.padding     = "2px 6px";
+            tdKey.style.borderBottom = "1px solid #eee";
+            tdKey.style.color       = "#888";
+            tdKey.style.whiteSpace  = "nowrap";
+            tdKey.style.verticalAlign = "top";
+            tdKey.textContent = key.replace(/_/g, " ");
+
+            var tdVal = document.createElement("td");
+            tdVal.style.padding      = "2px 6px";
+            tdVal.style.borderBottom = "1px solid #eee";
+            tdVal.style.wordBreak    = "break-word";
+            tdVal.textContent = String(val);
+
+            tr.appendChild(tdKey);
+            tr.appendChild(tdVal);
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        wrapper.appendChild(table);
 
         container.appendChild(wrapper);
     }
