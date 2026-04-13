@@ -114,6 +114,11 @@ def execute_report(
 
         return {"text": text, "citations": [citation], "tokens_used": 0}
 
+    except frappe.PermissionError:
+        return _error(
+            f"You do not have permission to view the data in the '{report_name}' report. "
+            "Please contact your administrator if you need access."
+        )
     except frappe.DoesNotExistError:
         return _error(
             f"The report '{report_name}' could not be found. It may have been deleted — "
