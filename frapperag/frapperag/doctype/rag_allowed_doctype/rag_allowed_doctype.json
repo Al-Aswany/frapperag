@@ -5,7 +5,8 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "doctype_name"
+  "doctype_name",
+  "date_field"
  ],
  "fields": [
   {
@@ -15,6 +16,13 @@
    "label": "Document Type",
    "options": "DocType",
    "reqd": 1
+  },
+  {
+   "fieldname": "date_field",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Date Field",
+   "description": "Field used for from_date/to_date filtering (e.g. posting_date). Leave blank to disallow date filters."
   }
  ],
  "index_web_pages_for_search": 0,

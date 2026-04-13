@@ -14,6 +14,8 @@
   "allowed_roles",
   "section_reports",
   "allowed_reports",
+  "section_aggregate",
+  "aggregate_fields",
   "section_sidecar",
   "sidecar_port",
   "section_sync_health",
@@ -70,6 +72,17 @@
    "fieldtype": "Table",
    "label": "Allowed Reports",
    "options": "RAG Allowed Report"
+  },
+  {
+   "fieldname": "section_aggregate",
+   "fieldtype": "Section Break",
+   "label": "Aggregate Query Fields"
+  },
+  {
+   "fieldname": "aggregate_fields",
+   "fieldtype": "Table",
+   "label": "Aggregate Fields",
+   "options": "RAG Aggregate Field"
   },
   {
    "fieldname": "section_sidecar",

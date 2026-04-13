@@ -323,6 +323,243 @@ def _execute_low_stock_recent_sales(params: dict, user: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Aggregate DocType helpers
+# ---------------------------------------------------------------------------
+
+_ALLOWED_AGG_FNS = frozenset(["COUNT", "SUM", "AVG", "MIN", "MAX"])
+
+
+def _load_aggregate_allowlists() -> dict:
+    """Load per-DocType aggregate allowlists from AI Assistant Settings.
+
+    Returns a dict keyed by doctype_name::
+
+        {
+            "Purchase Invoice": {
+                "date_field":       "posting_date",   # or None → date filters rejected
+                "group_by_fields":  frozenset({"status", "supplier"}),
+                "aggregate_fields": frozenset({"grand_total"}),
+            },
+            ...
+        }
+
+    Returns an empty dict when settings are not accessible (fail-closed).
+    """
+    try:
+        settings = frappe.get_single("AI Assistant Settings")
+    except Exception:
+        return {}
+
+    date_field_map: dict[str, str | None] = {
+        row.doctype_name: (row.date_field or None)
+        for row in (settings.allowed_doctypes or [])
+    }
+
+    result: dict = {}
+    for row in (settings.aggregate_fields or []):
+        dt = row.doctype_name
+        if dt not in result:
+            result[dt] = {
+                "date_field": date_field_map.get(dt),
+                "group_by_fields": set(),
+                "aggregate_fields": set(),
+            }
+        if row.allow_group_by:
+            result[dt]["group_by_fields"].add(row.fieldname)
+        if row.allow_aggregate:
+            result[dt]["aggregate_fields"].add(row.fieldname)
+
+    for dt in result:
+        result[dt]["group_by_fields"] = frozenset(result[dt]["group_by_fields"])
+        result[dt]["aggregate_fields"] = frozenset(result[dt]["aggregate_fields"])
+
+    return result
+
+
+def _execute_aggregate_doctype(params: dict, user: str) -> dict:
+    """Parametric aggregate query against an admin-allowlisted DocType.
+
+    Identifiers (table name, field names) are taken exclusively from the
+    admin-configured allowlist and inserted via f-string into the SQL.
+    User-supplied filter *values* use %(name)s parameterized placeholders.
+    """
+    import datetime as _dt
+
+    doctype         = (params.get("doctype")         or "").strip()
+    group_by        = (params.get("group_by")        or "").strip()
+    aggregate_field = (params.get("aggregate_field") or "").strip()
+    aggregate_fn    = (params.get("aggregate_fn")    or "COUNT").strip().upper()
+    from_date       = (params.get("from_date")       or "").strip()
+    to_date         = (params.get("to_date")         or "").strip()
+    status          = (params.get("status")          or "").strip()
+    filter_field    = (params.get("filter_field")    or "").strip()
+    filter_value    = (params.get("filter_value")    or "").strip()
+    order_dir       = (params.get("order_by")        or "desc").strip().lower()
+    limit           = _validate_int(params.get("limit"), name="limit", default=10, minimum=1, maximum=50)
+
+    if not doctype:
+        return _error("Please specify a DocType to query (e.g. 'Purchase Invoice').")
+
+    # --- allowlist gate --------------------------------------------------
+    allowlists = _load_aggregate_allowlists()
+    dt_config = allowlists.get(doctype)
+    if dt_config is None:
+        return _error(
+            f"Aggregate queries on '{doctype}' are not configured. "
+            "Ask your administrator to add it to AI Assistant Settings → Aggregate Fields."
+        )
+
+    # --- DocType-level permission ----------------------------------------
+    if not frappe.has_permission(doctype, ptype="read", user=user):
+        return _error(
+            f"You do not have permission to access {doctype} data. "
+            "Please contact your administrator if you need access."
+        )
+
+    # --- validate aggregate_fn ------------------------------------------
+    if aggregate_fn not in _ALLOWED_AGG_FNS:
+        aggregate_fn = "COUNT"
+
+    # --- validate group_by ----------------------------------------------
+    if group_by and group_by not in dt_config["group_by_fields"]:
+        allowed = ", ".join(sorted(dt_config["group_by_fields"])) or "none configured"
+        return _error(
+            f"Grouping by '{group_by}' is not allowed for {doctype}. "
+            f"Allowed group-by fields: {allowed}."
+        )
+
+    # --- validate filter_field / filter_value ---------------------------
+    if filter_field and not filter_value:
+        return _error("filter_value is required when filter_field is specified.")
+    if filter_value and not filter_field:
+        return _error("filter_field is required when filter_value is specified.")
+    if filter_field and filter_field not in dt_config["group_by_fields"]:
+        allowed = ", ".join(sorted(dt_config["group_by_fields"])) or "none configured"
+        return _error(
+            f"Filtering by '{filter_field}' is not allowed for {doctype}. "
+            f"Allowed filter fields: {allowed}."
+        )
+
+    # --- validate aggregate_field ---------------------------------------
+    if aggregate_fn != "COUNT" or aggregate_field:
+        # Non-COUNT fns require an aggregate_field
+        if aggregate_fn != "COUNT" and not aggregate_field:
+            return _error(
+                f"aggregate_field is required when aggregate_fn is '{aggregate_fn}'."
+            )
+        # aggregate_field, when supplied, must be on the allowlist
+        if aggregate_field and aggregate_field not in dt_config["aggregate_fields"]:
+            allowed = ", ".join(sorted(dt_config["aggregate_fields"])) or "none configured"
+            return _error(
+                f"Aggregating '{aggregate_field}' is not allowed for {doctype}. "
+                f"Allowed aggregate fields: {allowed}."
+            )
+
+    # --- validate date filters ------------------------------------------
+    date_field = dt_config.get("date_field")
+    if (from_date or to_date) and not date_field:
+        return _error(
+            f"Date filtering is not configured for {doctype}. "
+            "Ask your administrator to set a Date Field in AI Assistant Settings → Allowed Document Types."
+        )
+
+    # --- validate order direction ----------------------------------------
+    if order_dir not in ("asc", "desc"):
+        order_dir = "desc"
+
+    # --- build SQL -------------------------------------------------------
+    # Identifiers: validated from allowlist → safe for f-string interpolation.
+    # Values:      always %(name)s placeholders.
+    tab = f"`tab{doctype}`"
+
+    if aggregate_field:
+        agg_expr = f"{aggregate_fn}(`{aggregate_field}`)"
+        agg_label = f"{aggregate_fn}({aggregate_field})"
+    else:
+        agg_expr = "COUNT(*)"
+        agg_label = "COUNT(*)"
+
+    if group_by:
+        select_sql = f"`{group_by}`, {agg_expr} AS agg_value"
+    else:
+        select_sql = f"{agg_expr} AS agg_value"
+
+    sql_params: dict = {"limit": limit}
+    where_clauses: list[str] = []
+
+    if from_date and date_field:
+        where_clauses.append(f"`{date_field}` >= %(from_date)s")
+        sql_params["from_date"] = from_date
+    if to_date and date_field:
+        where_clauses.append(f"`{date_field}` <= %(to_date)s")
+        sql_params["to_date"] = to_date
+    if status:
+        meta = frappe.get_meta(doctype)
+        if meta.get_field("status"):
+            where_clauses.append("`status` = %(status)s")
+            sql_params["status"] = status
+    if filter_field and filter_value:
+        # filter_field already validated against group_by_fields allowlist
+        where_clauses.append(f"`{filter_field}` = %(filter_value)s")
+        sql_params["filter_value"] = filter_value
+
+    # Submitted-docs-only filter for submittable DocTypes
+    meta = frappe.get_meta(doctype)
+    if meta.is_submittable:
+        where_clauses.append("`docstatus` = 1")
+
+    where_sql  = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+    group_sql  = f"GROUP BY `{group_by}`" if group_by else ""
+    order_sql  = f"ORDER BY agg_value {order_dir.upper()}"
+
+    full_sql = (
+        f"SELECT {select_sql} FROM {tab} "
+        f"{where_sql} {group_sql} {order_sql} LIMIT %(limit)s"
+    )
+
+    rows = frappe.db.sql(full_sql, sql_params, as_dict=True)
+
+    if not rows:
+        filter_parts = []
+        if from_date: filter_parts.append(f"from {from_date}")
+        if to_date:   filter_parts.append(f"to {to_date}")
+        if status:    filter_parts.append(f"with status '{status}'")
+        if filter_field and filter_value:
+            filter_parts.append(f"with {filter_field} = '{filter_value}'")
+        filter_desc = " ".join(filter_parts) or "with the given filters"
+        return _error(f"No {doctype} records found {filter_desc}.")
+
+    # --- build citation -------------------------------------------------
+    if group_by:
+        columns   = [group_by, agg_label]
+        safe_rows = [[_safe(r.get(group_by)), _safe(r["agg_value"])] for r in rows]
+        text = (
+            f"Here are the {doctype} records grouped by '{group_by}' "
+            f"({agg_label}):"
+        )
+    else:
+        columns   = [agg_label]
+        safe_rows = [[_safe(r["agg_value"])] for r in rows]
+        val = _safe(rows[0]["agg_value"])
+        text = f"The {agg_label} for {doctype} is {val}."
+        filter_parts = []
+        if from_date: filter_parts.append(f"from {from_date}")
+        if to_date:   filter_parts.append(f"to {to_date}")
+        if status:    filter_parts.append(f"status = '{status}'")
+        if filter_parts:
+            text += f" (Filters: {', '.join(filter_parts)})"
+
+    citation = {
+        "type": "query_result",
+        "template": "aggregate_doctype",
+        "columns": columns,
+        "rows": safe_rows,
+        "row_count": len(safe_rows),
+    }
+    return {"text": text, "citations": [citation], "tokens_used": 0}
+
+
+# ---------------------------------------------------------------------------
 # Template registry
 # ---------------------------------------------------------------------------
 
@@ -456,6 +693,105 @@ QUERY_TEMPLATES: dict = {
         },
         "execute": _execute_low_stock_recent_sales,
         "permission_doctypes": ["Sales Invoice", "Stock Entry"],
+    },
+
+    "aggregate_doctype": {
+        "description": (
+            "Run a flexible COUNT / SUM / AVG / MIN / MAX aggregate query on any "
+            "admin-configured DocType. Use this for questions that ask how many records "
+            "exist, totals, averages, breakdowns by a field, or to check if records exist "
+            "for a given filter — when no more specific template applies. "
+            "Resolve relative date expressions (e.g. 'last month', 'this year') into "
+            "concrete YYYY-MM-DD from_date / to_date values using today's date. "
+            "You can also filter by any allowlisted field using filter_field + filter_value "
+            "(e.g. filter_field='customer', filter_value='Acme Corp'). "
+            "Examples: "
+            "'How many purchase invoices were submitted last month?', "
+            "'What is the total grand total of submitted sales orders this year?', "
+            "'How many stock entries were created in the last 7 days?', "
+            "'Show the count of purchase invoices grouped by supplier last quarter', "
+            "'What is the average invoice value for submitted purchase invoices in March?', "
+            "'How many sales orders have status Completed?', "
+            "'Show me all sales invoices for customer XYZ' (use COUNT with filter_field='customer')."
+        ),
+        "parameters": {
+            "doctype": {
+                "type": "STRING",
+                "description": (
+                    "The Frappe DocType to query, e.g. 'Purchase Invoice', "
+                    "'Sales Order', 'Stock Entry'."
+                ),
+                "required": True,
+            },
+            "aggregate_fn": {
+                "type": "STRING",
+                "description": (
+                    "Aggregate function: COUNT (default), SUM, AVG, MIN, MAX. "
+                    "Use COUNT when asking 'how many'. Use SUM/AVG for totals/averages."
+                ),
+                "required": False,
+            },
+            "aggregate_field": {
+                "type": "STRING",
+                "description": (
+                    "Field to aggregate (required for SUM/AVG/MIN/MAX; optional for COUNT). "
+                    "Must be an admin-allowlisted numeric field, e.g. 'grand_total'."
+                ),
+                "required": False,
+            },
+            "group_by": {
+                "type": "STRING",
+                "description": (
+                    "Field to group results by, e.g. 'status' or 'supplier'. "
+                    "Must be an admin-allowlisted field. Omit for a single aggregate value."
+                ),
+                "required": False,
+            },
+            "from_date": {
+                "type": "STRING",
+                "description": "Start of date range (ISO date: YYYY-MM-DD). Requires date_field to be configured.",
+                "required": False,
+            },
+            "to_date": {
+                "type": "STRING",
+                "description": "End of date range (ISO date: YYYY-MM-DD). Requires date_field to be configured.",
+                "required": False,
+            },
+            "status": {
+                "type": "STRING",
+                "description": "Filter by status field value, e.g. 'Submitted', 'Cancelled'.",
+                "required": False,
+            },
+            "filter_field": {
+                "type": "STRING",
+                "description": (
+                    "An additional field to filter on (must be an admin-allowlisted "
+                    "group-by field), e.g. 'supplier', 'customer'. "
+                    "Use with filter_value."
+                ),
+                "required": False,
+            },
+            "filter_value": {
+                "type": "STRING",
+                "description": (
+                    "The value to match for filter_field, e.g. a customer name or supplier name. "
+                    "Required when filter_field is set."
+                ),
+                "required": False,
+            },
+            "order_by": {
+                "type": "STRING",
+                "description": "Sort direction for the aggregate value: 'desc' (default) or 'asc'.",
+                "required": False,
+            },
+            "limit": {
+                "type": "NUMBER",
+                "description": "Maximum rows to return (default 10, max 50).",
+                "required": False,
+            },
+        },
+        "execute": _execute_aggregate_doctype,
+        "permission_doctypes": None,  # checked dynamically against allowlist + frappe.has_permission
     },
 }
 

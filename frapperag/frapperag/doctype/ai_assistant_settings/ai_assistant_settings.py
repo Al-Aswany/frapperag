@@ -52,6 +52,7 @@ class AIAssistantSettings(Document):
 
         # Block B — Default filters JSON validation (FR-001)
         import json
+        import re
 
         for i, row in enumerate(self.allowed_reports or []):
             if not row.default_filters:
@@ -70,6 +71,54 @@ class AIAssistantSettings(Document):
                     "Default Filters must be a JSON object {}, not an array or scalar.",
                     frappe.ValidationError,
                 )
+
+        # Block C — Aggregate field allowlist validation (AF-001 to AF-004)
+        _FIELDNAME_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+        _NUMERIC_TYPES = {"Currency", "Float", "Int", "Percent"}
+        _allowed_doctype_names = {r.doctype_name for r in (self.allowed_doctypes or [])}
+        _seen_agg = set()
+
+        for i, row in enumerate(self.aggregate_fields or []):
+            label = f"Aggregate Fields row {i + 1}"
+
+            # AF-001: doctype must be in allowed_doctypes
+            if row.doctype_name not in _allowed_doctype_names:
+                frappe.throw(
+                    f"{label}: DocType '{row.doctype_name}' is not in the Allowed Document Types list.",
+                    frappe.ValidationError,
+                )
+
+            # AF-002: fieldname must match safe identifier pattern
+            if not _FIELDNAME_RE.match(row.fieldname or ""):
+                frappe.throw(
+                    f"{label}: fieldname '{row.fieldname}' is invalid. "
+                    "Must start with a lowercase letter and contain only lowercase letters, digits, and underscores (max 64 chars).",
+                    frappe.ValidationError,
+                )
+
+            # AF-003: no duplicate (doctype_name, fieldname) rows
+            key = (row.doctype_name, row.fieldname)
+            if key in _seen_agg:
+                frappe.throw(
+                    f"{label}: duplicate entry for ({row.doctype_name}, {row.fieldname}).",
+                    frappe.ValidationError,
+                )
+            _seen_agg.add(key)
+
+            # AF-004: if allow_aggregate is set, field must be a numeric type
+            if row.allow_aggregate:
+                meta_field = frappe.get_meta(row.doctype_name).get_field(row.fieldname)
+                if not meta_field:
+                    frappe.throw(
+                        f"{label}: field '{row.fieldname}' does not exist on DocType '{row.doctype_name}'.",
+                        frappe.ValidationError,
+                    )
+                if meta_field.fieldtype not in _NUMERIC_TYPES:
+                    frappe.throw(
+                        f"{label}: field '{row.fieldname}' is of type '{meta_field.fieldtype}'. "
+                        f"Only numeric fields ({', '.join(sorted(_NUMERIC_TYPES))}) may have Allow Aggregate enabled.",
+                        frappe.ValidationError,
+                    )
 
     def on_update(self):
         """Detect removed DocTypes and enqueue a purge job for each one (US3 / FR-005)."""

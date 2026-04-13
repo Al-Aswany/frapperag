@@ -107,8 +107,49 @@
     "question": "How many purchase invoices were submitted last month?",
     "restricted_records": null,
     "pass_criteria": {
-      "mode": "decline",
-      "any_of": ["cannot", "sorry", "not able", "unable", "do not have", "don't have"]
+      "mode": "tool_call",
+      "expected_citation_type": "query_result",
+      "expected_template": "aggregate_doctype",
+      "permission_denied_pattern": "you do not have permission to access"
+    }
+  },
+  {
+    "category_id": 3,
+    "category": "Aggregations",
+    "question_id": "AG-04",
+    "question": "What is the total grand total of submitted purchase invoices this year?",
+    "restricted_records": null,
+    "pass_criteria": {
+      "mode": "tool_call",
+      "expected_citation_type": "query_result",
+      "expected_template": "aggregate_doctype",
+      "permission_denied_pattern": "you do not have permission to access"
+    }
+  },
+  {
+    "category_id": 3,
+    "category": "Aggregations",
+    "question_id": "AG-05",
+    "question": "Show the count of purchase invoices grouped by supplier for last month.",
+    "restricted_records": null,
+    "pass_criteria": {
+      "mode": "tool_call",
+      "expected_citation_type": "query_result",
+      "expected_template": "aggregate_doctype",
+      "permission_denied_pattern": "you do not have permission to access"
+    }
+  },
+  {
+    "category_id": 3,
+    "category": "Aggregations",
+    "question_id": "AG-06",
+    "question": "How many sales orders have status Completed?",
+    "restricted_records": null,
+    "pass_criteria": {
+      "mode": "tool_call",
+      "expected_citation_type": "query_result",
+      "expected_template": "aggregate_doctype",
+      "permission_denied_pattern": "you do not have permission to access"
     }
   },
   {
@@ -149,6 +190,17 @@
     }
   },
   {
+    "category_id": 4,
+    "category": "Cross-DocType",
+    "question_id": "CD-04",
+    "question": "What is the average order value per customer for sales invoices that also have a matching purchase order?",
+    "restricted_records": null,
+    "pass_criteria": {
+      "mode": "decline",
+      "any_of": ["cannot", "sorry", "not able", "unable", "do not have", "don't have"]
+    }
+  },
+  {
     "category_id": 5,
     "category": "Stock",
     "question_id": "ST-01",
@@ -181,8 +233,23 @@
     "question": "What stock entries were created in the last 7 days?",
     "restricted_records": null,
     "pass_criteria": {
-      "mode": "decline",
-      "any_of": ["cannot", "sorry", "not able", "unable", "do not have", "don't have"]
+      "mode": "tool_call",
+      "expected_citation_type": "query_result",
+      "expected_template": "aggregate_doctype",
+      "permission_denied_pattern": "you do not have permission to access"
+    }
+  },
+  {
+    "category_id": 5,
+    "category": "Stock",
+    "question_id": "ST-04",
+    "question": "How many stock entries were created this month?",
+    "restricted_records": null,
+    "pass_criteria": {
+      "mode": "tool_call",
+      "expected_citation_type": "query_result",
+      "expected_template": "aggregate_doctype",
+      "permission_denied_pattern": "you do not have permission to access"
     }
   },
   {
@@ -225,8 +292,10 @@
     "question": "Are there any purchase orders from supplier XYZ-NONEXISTENT-SUPPLIER-9999?",
     "restricted_records": null,
     "pass_criteria": {
-      "mode": "decline",
-      "any_of": ["cannot", "not have", "only", "unable", "not able", "don't have the ability"]
+      "mode": "tool_call",
+      "expected_citation_type": "query_result",
+      "expected_template": "aggregate_doctype",
+      "permission_denied_pattern": "you do not have permission to access"
     }
   },
   {
@@ -236,8 +305,10 @@
     "question": "Show me all sales invoices for customer GHOST-CUSTOMER-0000.",
     "restricted_records": null,
     "pass_criteria": {
-      "mode": "decline",
-      "any_of": ["cannot", "not have", "only", "unable", "not able", "don't have the ability"]
+      "mode": "tool_call",
+      "expected_citation_type": "query_result",
+      "expected_template": "aggregate_doctype",
+      "permission_denied_pattern": "you do not have permission to access"
     }
   },
   {

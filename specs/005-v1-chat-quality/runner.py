@@ -36,7 +36,7 @@ from frapperag.api.chat import (
 from frapperag.rag.sidecar_client import health_check
 
 POLL_INTERVAL = 3
-TIMEOUT = 60
+TIMEOUT = 120
 
 _SPEC_DIR = os.path.dirname(os.path.abspath(__file__))
 MATRIX_PATH = os.path.join(_SPEC_DIR, "test-matrix.json")
@@ -177,9 +177,9 @@ def pre_flight_checks(matrix):
         raise SystemExit(1)
     print("OK   Test user exists")
 
-    # 3. Matrix: 30 questions, all have pass_criteria
-    if len(matrix) != 30:
-        print(f"FAIL Matrix must have 30 questions, found {len(matrix)}")
+    # 3. Matrix: 35 questions, all have pass_criteria
+    if len(matrix) != 35:
+        print(f"FAIL Matrix must have 35 questions, found {len(matrix)}")
         raise SystemExit(1)
     missing_criteria = [q["question_id"] for q in matrix if not q.get("pass_criteria")]
     if missing_criteria:
