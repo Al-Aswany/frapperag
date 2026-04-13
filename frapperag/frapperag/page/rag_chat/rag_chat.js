@@ -417,13 +417,35 @@ frappe.pages["rag-chat"].on_page_load = function(wrapper) {
         if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send_message(); }
     });
 
-    // ── Realtime subscription ─────────────────────────────────────────────────
+    // ── Realtime subscription + polling fallback ──────────────────────────────
+    //
+    // Two paths resolve the response:
+    //   1. Realtime: frappe.publish_realtime fires rag_chat_response from the worker.
+    //   2. Poll: setInterval checks get_message_status every 2 s for up to 60 s.
+    // Whichever path fires first wins; the `handled` flag prevents double-render.
 
     function subscribe_realtime(message_id) {
-        frappe.realtime.off("rag_chat_response");
-        frappe.realtime.on("rag_chat_response", function(data) {
-            // Guard: ignore events not belonging to the current in-flight message (FR-014)
+        var handled      = false;
+        var poll_timer   = null;
+        var poll_count   = 0;
+        var POLL_MAX     = 30;   // 30 ticks × 2 s = 60 s ceiling
+
+        function stop_poll() {
+            if (poll_timer) {
+                clearInterval(poll_timer);
+                poll_timer = null;
+            }
+        }
+
+        function handle_response(source, data) {
+            // Guard 1: wrong message (stale event from a previous send)
             if (data.message_id !== message_id) return;
+            // Guard 2: already handled by the other path
+            if (handled) return;
+            handled = true;
+            stop_poll();
+
+            console.log("[rag-chat] response via " + source + " — status=" + data.status, data);
 
             $(".rag-pending-bubble").remove();
             var $msgs = $("#rag-messages");
@@ -457,7 +479,39 @@ frappe.pages["rag-chat"].on_page_load = function(wrapper) {
             frappe.realtime.off("rag_chat_response");
             current_message_id = null;
             load_sessions();  // refresh sidebar title after first completed response
+        }
+
+        // Path 1 — realtime
+        frappe.realtime.off("rag_chat_response");
+        frappe.realtime.on("rag_chat_response", function(data) {
+            console.log("[rag-chat] realtime rag_chat_response received:", data);
+            handle_response("realtime", data);
         });
+
+        // Path 2 — polling fallback (every 2 s, max 60 s)
+        poll_timer = setInterval(function() {
+            if (handled) { stop_poll(); return; }
+
+            poll_count++;
+            if (poll_count > POLL_MAX) {
+                console.warn("[rag-chat] poll timed out after 60 s for message_id=" + message_id);
+                stop_poll();
+                return;
+            }
+
+            console.log("[rag-chat] poll #" + poll_count + " — message_id=" + message_id);
+            frappe.call({
+                method: "frapperag.api.chat.get_message_status",
+                args: { message_id: message_id },
+                callback: function(r) {
+                    var status = r.message && r.message.status;
+                    console.log("[rag-chat] poll #" + poll_count + " result: status=" + status);
+                    if (r.message && status !== "Pending") {
+                        handle_response("poll", r.message);
+                    }
+                }
+            });
+        }, 2000);
     }
 
     // ── Stalled-message realtime (from scheduler sweep) ───────────────────────

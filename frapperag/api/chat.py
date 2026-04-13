@@ -105,6 +105,69 @@ def get_messages(session_id: str) -> dict:
 
 
 @frappe.whitelist()
+def get_message_status(message_id: str) -> dict:
+    """
+    Return the response status for a pending user message, in the same shape
+    as the rag_chat_response realtime event so the JS polling path and the
+    realtime path share a single handle_response() function.
+
+    - Pending  → {"message_id", "status": "Pending"}
+    - Failed   → {"message_id", "status": "Failed", "failure_reason"}
+    - Completed → fetch the assistant reply inserted atomically with the status
+                  update and return {"message_id", "status": "Completed",
+                  "content", "citations"}.  message_id is always the user
+                  message id so the JS closure guard matches correctly.
+    """
+    msg = frappe.db.get_value(
+        "Chat Message",
+        message_id,
+        ["name", "session", "status", "failure_reason", "modified"],
+        as_dict=True,
+    )
+    if not msg:
+        frappe.throw(f"Chat Message '{message_id}' not found.", frappe.DoesNotExistError)
+    _assert_session_owner(msg.session)
+
+    if msg.status == "Pending":
+        return {"message_id": msg.name, "status": "Pending"}
+
+    if msg.status == "Failed":
+        return {
+            "message_id": msg.name,
+            "status": "Failed",
+            "failure_reason": msg.failure_reason or "",
+        }
+
+    # Completed: the worker updated the user message and inserted the assistant
+    # reply in the same frappe.db.commit(), so both share the same `now`
+    # timestamp.  Query by creation >= msg.modified to find the right row.
+    reply = frappe.db.get_value(
+        "Chat Message",
+        {"session": msg.session, "role": "assistant", "creation": [">=", msg.modified]},
+        ["content", "citations"],
+        as_dict=True,
+        order_by="creation asc",
+    )
+    if reply:
+        citations = reply.citations
+        if isinstance(citations, str) and citations:
+            try:
+                citations = json.loads(citations)
+            except Exception:
+                citations = []
+        return {
+            "message_id": msg.name,   # user message_id — matches JS closure guard
+            "status": "Completed",
+            "content": reply.content or "",
+            "citations": citations or [],
+        }
+
+    # Atomicity guarantee means the reply should always exist at this point,
+    # but if somehow absent (e.g. clock skew), keep polling rather than crashing.
+    return {"message_id": msg.name, "status": "Pending"}
+
+
+@frappe.whitelist()
 def archive_session(session_id: str) -> dict:
     """Transition a session from Open to Archived (FR-020)."""
     _assert_session_owner(session_id)

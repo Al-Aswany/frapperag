@@ -267,6 +267,7 @@ def run_chat_job(message_id: str, session_id: str, user: str, question: str = ""
 
         # 10. Publish realtime response to the user (FR-014)
         t0 = _time.monotonic()
+        _log().info(f"[REALTIME][{message_id}] publishing rag_chat_response to user={user!r}")
         frappe.publish_realtime(
             event="rag_chat_response",
             message={
