@@ -1,0 +1,819 @@
+{
+  "meta": {
+    "bench": "golive-bench",
+    "site": "golive.site1",
+    "sidecar_port": 8100,
+    "runner_version": "1.0",
+    "executed_at": "2026-04-13T03:30:35",
+    "test_user": "rag-tester@golive.site1",
+    "matrix": "specs/005-v1-chat-quality/test-matrix.json"
+  },
+  "results": [
+    {
+      "question_id": "EL-01",
+      "category": "English Lookups",
+      "question": "What is SINV-IR-00657?",
+      "user_message_id": "RAG-MSG-2026-04-130144",
+      "response_excerpt": "You do not have permission to view this Sales Invoice record. Please contact your administrator if you need access.",
+      "elapsed_s": 6.05,
+      "citations": [],
+      "status": "Completed",
+      "tokens_used": 1434,
+      "grade": "PASS",
+      "grade_notes": "tool called — permission correctly denied"
+    },
+    {
+      "question_id": "EL-02",
+      "category": "English Lookups",
+      "question": "Show me customer Bothaina.",
+      "user_message_id": "RAG-MSG-2026-04-130145",
+      "response_excerpt": "You do not have permission to view this Customer record. Please contact your administrator if you need access.",
+      "elapsed_s": 6.06,
+      "citations": [],
+      "status": "Completed",
+      "tokens_used": 1458,
+      "grade": "PASS",
+      "grade_notes": "tool called — permission correctly denied"
+    },
+    {
+      "question_id": "EL-03",
+      "category": "English Lookups",
+      "question": "What is PUR-ORD-2026-00077?",
+      "user_message_id": "RAG-MSG-2026-04-130146",
+      "response_excerpt": "You do not have permission to view this Purchase Order record. Please contact your administrator if you need access.",
+      "elapsed_s": 6.05,
+      "citations": [],
+      "status": "Completed",
+      "tokens_used": 1535,
+      "grade": "PASS",
+      "grade_notes": "tool called — permission correctly denied"
+    },
+    {
+      "question_id": "AR-01",
+      "category": "Arabic Lookups",
+      "question": "ما هو عنوان البريد الإلكتروني للمورد شركة النور للتوريدات؟",
+      "user_message_id": "RAG-MSG-2026-04-130147",
+      "response_excerpt": "The query 'record_lookup' could not be executed: Supplier شركة النور للتوريدات not found. Please try again or contact your administrator.",
+      "elapsed_s": 6.06,
+      "citations": [],
+      "status": "Completed",
+      "tokens_used": 1537,
+      "grade": "PASS",
+      "grade_notes": "appropriate response (matched 'not found')"
+    },
+    {
+      "question_id": "AR-02",
+      "category": "Arabic Lookups",
+      "question": "ما هو رقم هاتف العميل مجموعة الخليج للتجارة؟",
+      "user_message_id": "RAG-MSG-2026-04-130148",
+      "response_excerpt": "The query 'record_lookup' could not be executed: Customer مجموعة الخليج للتجارة not found. Please try again or contact your administrator.",
+      "elapsed_s": 6.05,
+      "citations": [],
+      "status": "Completed",
+      "tokens_used": 1579,
+      "grade": "PASS",
+      "grade_notes": "appropriate response (matched 'not found')"
+    },
+    {
+      "question_id": "AR-03",
+      "category": "Arabic Lookups",
+      "question": "ما هي قائمة الأصناف النشطة المتاحة في النظام؟",
+      "user_message_id": "RAG-MSG-2026-04-130149",
+      "response_excerpt": "Here are the results for the Item Active List report:",
+      "elapsed_s": 6.05,
+      "citations": [
+        {
+          "type": "report_result",
+          "report_name": "Item Active List",
+          "columns": [
+            "ID",
+            "Item Name",
+            "Item Group",
+            "Default Unit of Measure",
+            "Maintain Stock",
+            "Has Serial No"
+          ],
+          "rows": [
+            [
+              "6290361553961",
+              " Blupebble ArmorEdge MacBook Ultra-Slim Hard Case for MacBook Air 13.6inch Matte Clear",
+              "Case",
+              null,
+              null,
+              null
+            ],
+            [
+              "6954661868377",
+              " JCP4333 JCPal FlexLoop Apple Watch Band for Black Grey1-3th(42mm),1",
+              "Band",
+              null,
+              null,
+              null
+            ],
+            [
+              "6954661861897",
+              " JCP6288 JCPal FlexForm Apple Watch Band for Black/Red 1-3th(42mm),1",
+              "Band",
+              null,
+              null,
+              null
+            ],
+            [
+              "6954661868179",
+              " JCPal FlexLink USB-C to USB-C Cable/White(1M)",
+              "Charger",
+              null,
+              null,
+              null
+            ],
+            [
+              "6954661872381",
+              " JCPal MODA SERIES Zeus Phone Chain",
+              "Crossbody Strap",
+              null,
+              null,
+              null
+            ],
+            [
+              "9904907057246",
+              " Levelo Clara MagSafe TPU+PC Case For iPhone 17 - Transparent",
+              "Case",
+              null,
+              null,
+              null
+            ],
+            [
+              "9904781985246",
+              " Levelo Clara MagSafe TPU+PC Case For iPhone 17 Pro Max - Transparent",
+              "Case",
+              null,
+              null,
+              null
+            ],
+            [
+              "9904907034230",
+              " Levelo CurveFit 3D DLC HD Screen Protector For iPhone 17 - Clear",
+              "screen protector",
+              null,
+              null,
+              null
+            ],
+            [
+              "407642",
+              " Ricoh black Cartridge SPC240 (2.3 K PRINTS STANDARDS YIELD)                                         ",
+              "Consumable Dig",
+              null,
+              null,
+              null
+            ],
+            [
+              "8886463691588",
+              "- UNIQ GARDE HYBRID WATCH CASE WITH SCREEN PROTECTION 42MM - E40 (SMOKE)",
+              "screen protector",
+              null,
+              null,
+              null
+            ],
+            [
+              "194644291150",
+              ",A1680H12 Anker Anker Zolo Power Bank (10K, 35WBuilt-In Dual USB-C Cables Black",
+              "Charger",
+              null,
+              null,
+              null
+            ],
+            [
+              "194644159399",
+              ",A81D5H11 Anker USB-C to USB-C Cable (3 ft,240W 25 braided) Black",
+              "Adapter",
+              null,
+              null,
+              null
+            ],
+            [
+              "745883896394",
+              ",Belkin BPB021hqWH BoostCharge Power Bank 10K PD 20W Blue",
+              "Charger",
+              null,
+              null,
+              null
+            ],
+            [
+              "745883841394",
+              ",Belkin USB-C Wall Charger 20W USB-C PD",
+              "Charger",
+              null,
+              null,
+              null
+            ],
+            [
+              "7694015093077",
+              ".Levelo Monet Metal Watch Strap for Apple Watch 49mm Green",
+              "Band",
+              null,
+              null,
+              null
+            ],
+            [
+              "6972905571968",
+              "\"COTECI UNIVERSAL CRYSTAL MACBOOK PRO 14\"\" (A2442/ A2779/A2918/A2992)BLACK\"",
+              "Case",
+              null,
+              null,
+              null
+            ],
+            [
+              "6972905571951",
+              "\"COTECI UNIVERSAL CRYSTAL MACBOOK PRO 14\"\" (A2442/ A2779/A2918/A2992)CLEAR\"",
+              "Case",
+              null,
+              null,
+              null
+            ],
+            [
+              "6925700928772",
+              "\"COVER IPAD MUTURAL PIN YUE AIR 11 M2(2024)AIR 5.4 MINT GREEN\"",
+              "Case",
+              null,
+              null,
+              null
+            ],
+            [
+              "6925700928734",
+              "\"COVER IPAD MUTURAL PIN YUE AIR 11 M2(2024)AIR 5.4 PINK\"",
+              "Case",
+              null,
+              null,
+              null
+            ],
+            [
+              "6973218937274",
+              "\"Dual Color Silicon watch band38-40mm \" black/red",
+              "Band",
+              null,
+              null,
+              null
+            ],
+            [
+              "6973218937281",
+              "\"Dual Color Silicon watch band38-40mm \" black/yellow",
+              "Band",
+              null,
+              null,
+              null
+            ],
+            [
+              "6973218937090",
+              "\"Elastic Watch band 42-44mm\" Silver",
+              "Band",
+              null,
+              null,
+              null
+            ],
+            [
+              "9904907099994",
+              "\"Green Lion PATRIC MAGSAFE CASE FOR IPHONE 17 PRO - BLACK",
+              "Case",
+              null,
+              null,
+              null
+            ],
+            [
+              "6954661853755",
+              "\"iClara Glass Screen Protector for iPhone 11 Pro Max ( 0.26mm, Smaller than screensize)\"",
+              "Protector",
+              null,
+              null,
+              null
+            ],
+            [
+              "6954661862979",
+              "\"JCPal Linx USB-C 7in1 Hub(USB3.0+ 2*USB 2.0+HDMI+PD+ SD Card slot+TF Card Slot)\"",
+              "Charger",
+              null,
+              null,
+              null
+            ],
+            [
+              "6973218937335",
+              "\"Leather watch band 38- 40mm\" Dark Brown Material: Leather Leather watch band",
+              "Band",
+              null,
+              null,
+              null
+            ],
+            [
+              "6973218937311",
+              "\"Leather watch band 42- 44mm\" Black",
+              "Band",
+              null,
+              null,
+              null
+            ],
+            [
+              "6973218936932",
+              "\"Nylon braided watch band 42-44mm (M:160MM)\" Red",
+              "Band",
+              null,
+              null,
+              null
+            ],
+            [
+              "6973218937953",
+              "\"Seven Beads Steel Belt38/40\"BlackMaterial: stainless steel seven beads steel belt for iwatch",
+              "Band",
+              null,
+              null,
+              null
+            ],
+            [
+              "6973218937410",
+              "\"Single Color Silicon watch band38-40mm\"OrangeMaterial: breatheable Silicone",
+              "Band",
+              null,
+              null,
+              null
+            ],
+            [
+              "6973218937366",
+              "\"Single Color Silicon watch band42-44mm \"Orange",
+              "Band",
+              null,
+              null,
+              null
+            ],
+            [
+              "6973218937373",
+              "\"Single Color Silicon watch band42-44mm \"Purple",
+              "Protector",
+              null,
+              null,
+              null
+            ],
+            [
+              "6973218930183",
+              "\"Type C to HDMI, 3840*2160@60Hz size: 45*24*10mmlength: 110mmMaterial: Aluminum Alloy+ TPE wire gray",
+              "Charger",
+              null,
+              null,
+              null
+            ],
+            [
+              "6935100162478",
+              "( 6.1 ) Green Matt Magsafe Metal iPhone 13 pro - Gold",
+              "Case",
+              null,
+              null,
+              null
+            ],
+            [
+              "6935100162492",
+              "( 6.1 ) Green Matt Magsafe Metal iPhone 13 pro - Green",
+              "Case",
+              null,
+              null,
+              null
+            ],
+            [
+              "6973218931784",
+              "(lightning)Secondary aluminium+TPE+Nylon Braided,fast charge, 2.4A Elite Cable 1M black",
+              "Charger",
+              null,
+              null,
+              null
+            ],
+            [
+              "6957815516803",
+              "(lightning)Secondary aluminium+TPE+Nylon Braided,fast charge, 2.4A Elite Cable 3M black",
+              "Charger",
+              null,
+              null,
+              null
+            ],
+            [
+              "923-02412",
+              "(PRODUCT)RED, Leather Folio, iPhone X",
+              "VIN,iPhone X",
+              null,
+              null,
+              null
+            ],
+            [
+              "923-00753",
+              "(PRODUCT)RED, Smart Cover, iPad mini 4",
+              "iPad mini 5 Wi-Fi",
+              null,
+              null,
+              null
+            ],
+            [
+              "6973218932026",
+              "(type-c)Secondary aluminium+TPE+Nylon Braided,fast charge, 2.4A Elite Cable  Type C 3M black",
+              "Charger",
+              null,
+              null,
+              null
+            ],
+            [
+              "7340055391368",
+              "{EMBERTONII-BK-BRS} Marshall Emberton II Compact Portable Wireless Speaker - Black - Brass",
+              "Audio",
+              null,
+              null,
+              null
+            ],
+            [
+              "7340055399715",
+              "{EMBERTONII-BK-STL} Marshall Emberton II Compact Portable Wireless Speaker - Black-Steel",
+              "Audio",
+              null,
+              null,
+              null
+            ],
+            [
+              "6935100189109",
+              "{GN4IN1CKCL} Green Lion 4 in 1 Lens Care Kit - Clear",
+              "screen protector",
+              null,
+              null,
+              null
+            ],
+            [
+              "9904907104698",
+              "{GNBNSLC03APBK} Green Lion Berlin Series Leather Case AirPods Pro 3- Black",
+              "Case",
+              null,
+              null,
+              null
+            ],
+            [
+              "9904907104452",
+              "{GNBNSPCC3APBK} Green Lion Berlin Series PC Case AirPods Pro 3 - Black",
+              "Case",
+              null,
+              null,
+              null
+            ],
+            [
+              "9904907104520",
+              "{GNBNSPCC3APGY} Green Lion Berlin Series PC Case AirPods Pro 3 - Gray",
+              "Case",
+              null,
+              null,
+              null
+            ],
+            [
+              "9904907114666",
+              "{GNBRARPRO3BK} Green Lion Berlin Series Silicone Case For Airpod pro 3 - Black",
+              "Case",
+              null,
+              null,
+              null
+            ],
+            [
+              "9904907114802",
+              "{GNBRARPRO3BL} Green Lion Berlin Series Silicone Case For Airpod pro 3 - Blue",
+              "Case",
+              null,
+              null,
+              null
+            ],
+            [
+              "9904907114734",
+              "{GNBRARPRO3PK} Green Lion Berlin Series Silicone Case For Airpod pro 3 - Pink",
+              "Case",
+              null,
+              null,
+              null
+            ],
+            [
+              "9904907114970",
+              "{GNBRARPRO3WH}Green Lion Berlin Series Silicone Case For Airpod pro 3 - White",
+              "Case",
+              null,
+              null,
+              null
+            ]
+          ],
+          "row_count": 50
+        }
+      ],
+      "status": "Completed",
+      "tokens_used": 1465,
+      "grade": "PASS",
+      "grade_notes": "report_result 'Item Active List' present"
+    },
+    {
+      "question_id": "AG-01",
+      "category": "Aggregations",
+      "question": "What are the top 5 best-selling items?",
+      "user_message_id": "RAG-MSG-2026-04-130150",
+      "response_excerpt": "You do not have permission to access Sales Invoice data. Please contact your administrator if you need access.",
+      "elapsed_s": 6.05,
+      "citations": [],
+      "status": "Completed",
+      "tokens_used": 1419,
+      "grade": "PASS",
+      "grade_notes": "tool called — permission correctly denied"
+    },
+    {
+      "question_id": "AG-02",
+      "category": "Aggregations",
+      "question": "Show me the top 10 items ranked by revenue this year.",
+      "user_message_id": "RAG-MSG-2026-04-130151",
+      "response_excerpt": "You do not have permission to access Sales Invoice data. Please contact your administrator if you need access.",
+      "elapsed_s": 6.05,
+      "citations": [],
+      "status": "Completed",
+      "tokens_used": 1535,
+      "grade": "PASS",
+      "grade_notes": "tool called — permission correctly denied"
+    },
+    {
+      "question_id": "AG-03",
+      "category": "Aggregations",
+      "question": "How many purchase invoices were submitted last month?",
+      "user_message_id": "RAG-MSG-2026-04-130152",
+      "response_excerpt": "I cannot directly tell you the number of purchase invoices submitted last month using my current tools. I can look up specific documents if you provide a document type and name/ID, or run reports on sales, customers, items, or suppliers.",
+      "elapsed_s": 6.05,
+      "citations": [],
+      "status": "Completed",
+      "tokens_used": 1611,
+      "grade": "PASS",
+      "grade_notes": "appropriate response (matched 'cannot')"
+    },
+    {
+      "question_id": "CD-01",
+      "category": "Cross-DocType",
+      "question": "What are the top 2 items sold together in the same sales invoice?",
+      "user_message_id": "RAG-MSG-2026-04-130153",
+      "response_excerpt": "You do not have permission to access Sales Invoice data. Please contact your administrator if you need access.",
+      "elapsed_s": 6.04,
+      "citations": [],
+      "status": "Completed",
+      "tokens_used": 1438,
+      "grade": "PASS",
+      "grade_notes": "tool called — permission correctly denied"
+    },
+    {
+      "question_id": "CD-02",
+      "category": "Cross-DocType",
+      "question": "Which item pairs are most frequently purchased together?",
+      "user_message_id": "RAG-MSG-2026-04-130154",
+      "response_excerpt": "You do not have permission to access Sales Invoice data. Please contact your administrator if you need access.",
+      "elapsed_s": 6.05,
+      "citations": [],
+      "status": "Completed",
+      "tokens_used": 1445,
+      "grade": "PASS",
+      "grade_notes": "tool called — permission correctly denied"
+    },
+    {
+      "question_id": "CD-03",
+      "category": "Cross-DocType",
+      "question": "Which items appear on both sales invoices and purchase invoices this year?",
+      "user_message_id": "RAG-MSG-2026-04-130155",
+      "response_excerpt": "I cannot provide a list of items that appear on both sales invoices and purchase invoices, as there is no tool available to query across these two document types simultaneously.",
+      "elapsed_s": 12.07,
+      "citations": [],
+      "status": "Completed",
+      "tokens_used": 1800,
+      "grade": "PASS",
+      "grade_notes": "appropriate response (matched 'cannot')"
+    },
+    {
+      "question_id": "ST-01",
+      "category": "Stock",
+      "question": "What are the top 10 missing items from the last 6 months of sales?",
+      "user_message_id": "RAG-MSG-2026-04-130156",
+      "response_excerpt": "You do not have permission to access Sales Invoice data. Please contact your administrator if you need access.",
+      "elapsed_s": 6.05,
+      "citations": [],
+      "status": "Completed",
+      "tokens_used": 1525,
+      "grade": "PASS",
+      "grade_notes": "tool called — permission correctly denied"
+    },
+    {
+      "question_id": "ST-02",
+      "category": "Stock",
+      "question": "Which items are low or out of stock based on recent sales activity?",
+      "user_message_id": "RAG-MSG-2026-04-130157",
+      "response_excerpt": "You do not have permission to access Sales Invoice data. Please contact your administrator if you need access.",
+      "elapsed_s": 6.05,
+      "citations": [],
+      "status": "Completed",
+      "tokens_used": 1474,
+      "grade": "PASS",
+      "grade_notes": "tool called — permission correctly denied"
+    },
+    {
+      "question_id": "ST-03",
+      "category": "Stock",
+      "question": "What stock entries were created in the last 7 days?",
+      "user_message_id": "RAG-MSG-2026-04-130158",
+      "response_excerpt": "I cannot directly answer questions about stock entries created within a specific date range using the available tools. I can only look up specific named records or run predefined reports.",
+      "elapsed_s": 6.05,
+      "citations": [],
+      "status": "Completed",
+      "tokens_used": 1727,
+      "grade": "PASS",
+      "grade_notes": "appropriate response (matched 'cannot')"
+    },
+    {
+      "question_id": "OS-01",
+      "category": "Out-of-Scope",
+      "question": "What is the current exchange rate between USD and EUR?",
+      "user_message_id": "RAG-MSG-2026-04-130159",
+      "response_excerpt": "I cannot provide real-time exchange rates as my tools do not have access to that information.",
+      "elapsed_s": 15.11,
+      "citations": [],
+      "status": "Completed",
+      "tokens_used": 1560,
+      "grade": "PASS",
+      "grade_notes": "appropriate response (matched 'cannot')"
+    },
+    {
+      "question_id": "OS-02",
+      "category": "Out-of-Scope",
+      "question": "What is the weather forecast for Dubai tomorrow?",
+      "user_message_id": "RAG-MSG-2026-04-130160",
+      "response_excerpt": "I cannot provide the weather forecast for Dubai. My capabilities are limited to accessing and processing ERP data.",
+      "elapsed_s": 6.05,
+      "citations": [],
+      "status": "Completed",
+      "tokens_used": 1421,
+      "grade": "PASS",
+      "grade_notes": "appropriate response (matched 'cannot')"
+    },
+    {
+      "question_id": "OS-03",
+      "category": "Out-of-Scope",
+      "question": "Who won the last FIFA World Cup?",
+      "user_message_id": "RAG-MSG-2026-04-130161",
+      "response_excerpt": "I cannot answer that question as my knowledge base is limited to the company's ERP data and I do not have access to real-world information like sports results.",
+      "elapsed_s": 6.05,
+      "citations": [],
+      "status": "Completed",
+      "tokens_used": 1479,
+      "grade": "PASS",
+      "grade_notes": "appropriate response (matched 'cannot')"
+    },
+    {
+      "question_id": "EM-01",
+      "category": "Empty Results",
+      "question": "Are there any purchase orders from supplier XYZ-NONEXISTENT-SUPPLIER-9999?",
+      "user_message_id": "RAG-MSG-2026-04-130162",
+      "response_excerpt": "I cannot directly search for purchase orders by supplier using my current tools. I can only look up a specific purchase order if you provide its ID.",
+      "elapsed_s": 6.05,
+      "citations": [],
+      "status": "Completed",
+      "tokens_used": 1677,
+      "grade": "PASS",
+      "grade_notes": "appropriate response (matched 'cannot')"
+    },
+    {
+      "question_id": "EM-02",
+      "category": "Empty Results",
+      "question": "Show me all sales invoices for customer GHOST-CUSTOMER-0000.",
+      "user_message_id": "RAG-MSG-2026-04-130163",
+      "response_excerpt": "I can only look up a specific sales invoice if you provide its ID (e.g., 'SINV-IR-00657'). I cannot retrieve all sales invoices for a given customer.",
+      "elapsed_s": 9.06,
+      "citations": [],
+      "status": "Completed",
+      "tokens_used": 1601,
+      "grade": "PASS",
+      "grade_notes": "appropriate response (matched 'cannot')"
+    },
+    {
+      "question_id": "EM-03",
+      "category": "Empty Results",
+      "question": "List all stock entries of type Transfer for item FAKE-ITEM-ZZZ-9999.",
+      "user_message_id": "RAG-MSG-2026-04-130164",
+      "response_excerpt": "I cannot list all stock entries of a specific type for an item. I can only look up a specific document if you provide its DocType and name/ID.",
+      "elapsed_s": 6.05,
+      "citations": [],
+      "status": "Completed",
+      "tokens_used": 1618,
+      "grade": "PASS",
+      "grade_notes": "appropriate response (matched 'cannot')"
+    },
+    {
+      "question_id": "VG-01",
+      "category": "Vague",
+      "question": "Tell me about our business.",
+      "user_message_id": "RAG-MSG-2026-04-130165",
+      "response_excerpt": "I can't tell you about your business overall, but I can provide specific information using my tools. For example, I can:\n\n*   Look up details of a specific invoice, order, customer, or item.\n*   Show you the top-selling items.\n*   Find items that are frequently purchased together.\n*   Identify items that are low in stock but have recent sales.\n*   Run reports like \"Customer by Territory\" or \"Sales Invoice Recent.\"\n\nWhat specific information are you looking for?",
+      "elapsed_s": 6.05,
+      "citations": [],
+      "status": "Completed",
+      "tokens_used": 1418,
+      "grade": "PASS",
+      "grade_notes": "appropriate response (matched 'specific')"
+    },
+    {
+      "question_id": "VG-02",
+      "category": "Vague",
+      "question": "What are the numbers?",
+      "user_message_id": "RAG-MSG-2026-04-130166",
+      "response_excerpt": "I can't answer such a general question as \"What are the numbers?\". Please tell me what specific numbers or information you are looking for. For example, I can:\n\n*   Look up details of a specific invoice, order, customer, or item.\n*   Show you the top-selling items.\n*   Find items that are frequently purchased together.\n*   Identify items that are low in stock but have recent sales.\n*   Run reports like \"Customer by Territory\" or \"Sales Invoice Recent.\"",
+      "elapsed_s": 6.05,
+      "citations": [],
+      "status": "Completed",
+      "tokens_used": 1620,
+      "grade": "PASS",
+      "grade_notes": "appropriate response (matched 'specific')"
+    },
+    {
+      "question_id": "VG-03",
+      "category": "Vague",
+      "question": "Show me the latest stuff.",
+      "user_message_id": "RAG-MSG-2026-04-130167",
+      "response_excerpt": "You do not have permission to view the data in the 'Sales Invoice Recent' report. Please contact your administrator if you need access.",
+      "elapsed_s": 6.05,
+      "citations": [],
+      "status": "Completed",
+      "tokens_used": 1624,
+      "grade": "PASS",
+      "grade_notes": "appropriate response (matched 'permission')"
+    },
+    {
+      "question_id": "CA-01",
+      "category": "Capability",
+      "question": "What can you help me with?",
+      "user_message_id": "RAG-MSG-2026-04-130168",
+      "response_excerpt": "I can help you with the following:\n* Look up specific documents like Sales Invoices, Customers, Items, Purchase Orders, etc., by their ID.\n* Run reports on:\n    * Top-selling items\n    * Item pairs frequently purchased together\n    * Low-stock items with recent sales\n    * Supplier lists by country\n    * Customer lists by territory\n    * Active item lists\n    * Recent sales invoices",
+      "elapsed_s": 6.05,
+      "citations": [],
+      "status": "Completed",
+      "tokens_used": 1400,
+      "grade": "PASS",
+      "grade_notes": "appropriate response (matched 'Sales Invoice')"
+    },
+    {
+      "question_id": "CA-02",
+      "category": "Capability",
+      "question": "What types of documents and data do you have access to?",
+      "user_message_id": "RAG-MSG-2026-04-130169",
+      "response_excerpt": "I have access to the following documents and data:\n\n**Documents:**\n* Sales Invoice\n* Customer\n* Item\n* Purchase Invoice\n* Sales Order\n* Purchase Order\n* Delivery Note\n* Purchase Receipt\n* Item Price\n* Stock Entry\n* Supplier\n\n**Data/Reports:**\n* Top-selling items (by quantity or revenue)\n* Item pairs most frequently purchased together\n* Low-stock items with recent sales\n* AI supplier list by country\n* Customer list by territory\n* Item active list\n* Recent sales invoices",
+      "elapsed_s": 6.05,
+      "citations": [],
+      "status": "Completed",
+      "tokens_used": 1527,
+      "grade": "PASS",
+      "grade_notes": "appropriate response (matched 'Sales Invoice')"
+    },
+    {
+      "question_id": "CA-03",
+      "category": "Capability",
+      "question": "Can you generate reports or export data to Excel?",
+      "user_message_id": "RAG-MSG-2026-04-130170",
+      "response_excerpt": "I can generate reports, but I cannot export data to Excel directly. You would need to use the ERP system to export data.",
+      "elapsed_s": 6.05,
+      "citations": [],
+      "status": "Completed",
+      "tokens_used": 1565,
+      "grade": "PASS",
+      "grade_notes": "appropriate response (matched 'cannot')"
+    },
+    {
+      "question_id": "PM-01",
+      "category": "Permissions",
+      "question": "What is the total amount on sales invoice SINV-IR-00657?",
+      "user_message_id": "RAG-MSG-2026-04-130171",
+      "response_excerpt": "You do not have permission to view this Sales Invoice record. Please contact your administrator if you need access.",
+      "elapsed_s": 9.06,
+      "citations": [],
+      "status": "Completed",
+      "tokens_used": 1457,
+      "grade": "PASS",
+      "grade_notes": "access correctly denied (matched 'permission')"
+    },
+    {
+      "question_id": "PM-02",
+      "category": "Permissions",
+      "question": "Show me the contact details and credit limit for customer Bothaina.",
+      "user_message_id": "RAG-MSG-2026-04-130172",
+      "response_excerpt": "You do not have permission to view this Customer record. Please contact your administrator if you need access.",
+      "elapsed_s": 6.05,
+      "citations": [],
+      "status": "Completed",
+      "tokens_used": 1462,
+      "grade": "PASS",
+      "grade_notes": "access correctly denied (matched 'permission')"
+    },
+    {
+      "question_id": "PM-03",
+      "category": "Permissions",
+      "question": "What items are on purchase order PUR-ORD-2026-00077 and what are their rates?",
+      "user_message_id": "RAG-MSG-2026-04-130173",
+      "response_excerpt": "You do not have permission to view this Purchase Order record. Please contact your administrator if you need access.",
+      "elapsed_s": 6.05,
+      "citations": [],
+      "status": "Completed",
+      "tokens_used": 1539,
+      "grade": "PASS",
+      "grade_notes": "access correctly denied (matched 'permission')"
+    }
+  ]
+}

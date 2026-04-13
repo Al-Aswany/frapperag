@@ -282,8 +282,8 @@ def _execute_low_stock_recent_sales(params: dict, user: str) -> dict:
         WHERE si.docstatus = 1
           AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
         GROUP BY sii.item_code
-        HAVING current_stock < qty_sold
-        ORDER BY (qty_sold - current_stock) DESC
+        HAVING COALESCE(SUM(b.actual_qty), 0) < SUM(sii.qty)
+        ORDER BY (SUM(sii.qty) - COALESCE(SUM(b.actual_qty), 0)) DESC
         LIMIT %(top_n)s
         """,
         {"from_date": from_date, "to_date": to_date, "top_n": top_n},
@@ -341,7 +341,9 @@ QUERY_TEMPLATES: dict = {
             "Look up the full details of a specific document by its DocType and "
             "name/ID. Use this when the user asks about a specific invoice, order, "
             "customer, item, or other named record (e.g. 'What is SINV-IR-00657?', "
-            "'Show me customer C-00042', 'Tell me about item ITEM-001')."
+            "'Show me customer C-00042', 'Tell me about item ITEM-001', "
+            "'What is PUR-ORD-2026-00001?', 'Show me purchase order PUR-ORD-2024-00077', "
+            "'Look up delivery note DN-00123')."
         ),
         "parameters": {
             "doctype": {
@@ -368,8 +370,11 @@ QUERY_TEMPLATES: dict = {
         "description": (
             "Return the top-selling items ranked by quantity sold or total revenue "
             "across submitted Sales Invoices. Use this when the user asks about "
-            "best-selling products, top items by sales, or most popular items "
-            "(e.g. 'What are the top 10 selling items?', 'Which items sell the most?')."
+            "best-selling products, top items by sales, most popular items, or items "
+            "ranked by revenue or amount "
+            "(e.g. 'What are the top 10 selling items?', 'Which items sell the most?', "
+            "'Show me the top 10 items ranked by revenue this year', "
+            "'What are the highest-revenue products?')."
         ),
         "parameters": {
             "top_n": {
@@ -400,10 +405,12 @@ QUERY_TEMPLATES: dict = {
     "best_selling_pairs": {
         "description": (
             "Find pairs of items that are most frequently purchased together in the "
-            "same Sales Invoice. Use this when the user asks about items bought "
-            "together, product bundles, or co-purchase patterns "
+            "same Sales Invoice. Use this when the user asks about items bought or "
+            "purchased together, item pairs, product bundles, or co-purchase patterns "
             "(e.g. 'What are the top 2 items sold together?', "
-            "'Which items are commonly bought together?')."
+            "'Which items are commonly bought together?', "
+            "'Which item pairs are most frequently purchased together?', "
+            "'What products do customers usually buy in the same order?')."
         ),
         "parameters": {
             "top_n": {
