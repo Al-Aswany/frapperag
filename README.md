@@ -7,10 +7,12 @@ A Retrieval-Augmented Generation (RAG) assistant for Frappe / ERPNext. FrappeRAG
 - **Local embedding** — `multilingual-e5-base` (sentence-transformers, ~280 MB, 768 dims) runs inside a persistent FastAPI sidecar; supports Arabic and English out of the box.
 - **Vector store** — LanceDB, stored in a bench-level `rag/` directory; table prefix `v3_`.
 - **Incremental sync** — Frappe `doc_events` hooks (`on_update`, `after_rename`, `on_trash`) automatically keep the vector index in sync with every save, rename, or delete for whitelisted DocTypes.
-- **Bulk indexing** — RAG Index Manager page lets RAG Admins trigger a full re-index of any whitelisted DocType, with real-time progress updates via `frappe.realtime`.
+- **Bulk indexing** — RAG Index Manager page lets RAG Admins trigger a full re-index of any whitelisted DocType (or all at once), with real-time progress updates via `frappe.realtime`.
 - **Chat interface** — Vanilla JS chat page (`/rag-chat`) backed by Google Gemini 2.5 Flash with multi-turn conversation history and per-source citations.
 - **Report execution** — Gemini can call whitelisted Report Builder reports as tools; results are rendered as formatted tables inside the chat thread with a 50-row cap.
+- **Query execution** — Predefined SQL templates for common analytics (top selling items, best-selling pairs, low stock, customer/supplier activity, inventory status, pending orders). Gemini selects the right template and passes validated parameters; results are returned as structured citations.
 - **Permission-aware retrieval** — every candidate record is filtered through `frappe.has_permission` before it can be included in a prompt or a chat response.
+- **Health monitoring** — Periodic sidecar health checks with response-time tracking via the `RAG System Health` Single DocType.
 - **Roles** — two fixtures (`RAG Admin`, `RAG User`) control access. System Managers always have full access.
 
 ## Architecture
@@ -31,13 +33,15 @@ RAG Sidecar  ── FastAPI + uvicorn ──  LanceDB (bench-level rag/)
 
 Workers **never** import `lancedb` or `sentence_transformers` directly. All vector and embedding operations are delegated to the sidecar via `frapperag.rag.sidecar_client`.
 
+The sidecar client includes built-in retry logic (max 3 attempts with exponential backoff) for transient errors (connect failures, timeouts, HTTP 429/502/503).
+
 ## Project Structure
 
 ```
 apps/frapperag/frapperag/
-├── hooks.py                        # after_install, scheduler_events, doc_events, fixtures
+├── hooks.py                        # after_install, after_migrate, scheduler_events, doc_events, fixtures
 ├── requirements.txt
-├── setup/install.py                # creates rag/ dir, adds Procfile sidecar entry
+├── setup/install.py                # creates rag/ dir, adds Procfile sidecar entry, seeds allowed doctypes
 ├── sidecar/
 │   ├── main.py                     # FastAPI app — /embed /upsert /search /chat /record /table
 │   └── store.py                    # LanceDB open/upsert/search/delete helpers
@@ -46,25 +50,29 @@ apps/frapperag/frapperag/
 │   ├── rag_allowed_doctype/        # Child table — whitelisted DocTypes
 │   ├── rag_allowed_role/           # Child table — roles allowed to chat
 │   ├── rag_allowed_report/         # Child table — whitelisted Report Builder reports
+│   ├── rag_aggregate_field/        # Child table — custom aggregation fields for query executor
 │   ├── ai_indexing_job/            # Bulk index job tracking (status, progress, counters)
 │   ├── chat_session/               # Chat session (Open / Archived)
 │   ├── chat_message/               # Individual message (user / assistant, Pending / Completed / Failed)
-│   └── sync_event_log/             # Per-record incremental sync audit log
+│   ├── sync_event_log/             # Per-record incremental sync audit log
+│   └── rag_system_health/          # Single DocType — sidecar health status + response time
 ├── rag/
 │   ├── base_indexer.py             # BaseIndexer ABC (validate → check_permission → execute)
-│   ├── sidecar_client.py           # httpx wrappers for every sidecar endpoint
+│   ├── sidecar_client.py           # httpx wrappers for every sidecar endpoint (with retry logic)
 │   ├── text_converter.py           # DocType → deterministic human-readable text (11 ERPNext DocTypes)
 │   ├── indexer.py                  # DocIndexerTool + run_indexing_job() + mark_stalled_jobs()
 │   ├── retriever.py                # search_candidates() + filter_by_permission()
-│   ├── prompt_builder.py           # build_messages() + build_report_tool_definitions() → Gemini tool list
+│   ├── prompt_builder.py           # build_messages() + build_tool_definitions() → Gemini tool list
 │   ├── chat_engine.py              # generate_response() via sidecar /chat (supports function calling)
-│   ├── chat_runner.py              # run_chat_job() + _load_report_whitelist() + tool_call dispatch
+│   ├── chat_runner.py              # run_chat_job() + tool_call dispatch (reports + queries)
 │   ├── report_executor.py          # execute_report() — 3-layer permission check + Report Builder execution
+│   ├── query_executor.py           # SQL templates for analytics (top sellers, stock, pairs, etc.)
+│   ├── health.py                   # Periodic sidecar health check → RAG System Health DocType
 │   ├── sync_hooks.py               # on_document_save/rename/trash doc_events handlers
 │   └── sync_runner.py              # run_sync_job() + run_purge_job() + mark_stalled_sync_jobs() + prune_sync_event_log()
 ├── api/
-│   ├── indexer.py                  # trigger_indexing, get_job_status, list_jobs, get_sync_health, retry_sync
-│   └── chat.py                     # create_session, send_message, list_sessions, get_messages, archive_session
+│   ├── indexer.py                  # trigger_indexing, trigger_full_index, get_job_status, list_jobs, get_sync_health, sidecar_health, retry_sync
+│   └── chat.py                     # create_session, send_message, list_sessions, get_messages, get_message_status, archive_session
 └── frapperag/page/
     ├── rag_admin/                  # RAG Index Manager — bulk indexing + sync health dashboard
     └── rag_chat/                   # Chat UI — session list, message thread, real-time streaming
@@ -108,13 +116,17 @@ bench --site <site> migrate
 1. Creates the bench-level `rag/` directory for LanceDB data.
 2. Appends a `rag_sidecar:` entry to the bench `Procfile`.
 
+`after_migrate` idempotently seeds the default 11 allowed DocTypes into AI Assistant Settings.
+
 ## Configuration
 
 1. Open **AI Assistant Settings** in Frappe Desk (System Manager or RAG Admin).
 2. Enter your **Gemini API Key**.
-3. Add the DocTypes you want indexed to **Allowed Document Types** (11 supported — see Supported DocTypes below).
+3. Add the DocTypes you want indexed to **Allowed Document Types** (11 supported — see Supported DocTypes below). Defaults are seeded automatically on install/migrate.
 4. Add the roles that may use the chat to **Allowed Roles** (default: `RAG User`).
-5. Optionally adjust **Sidecar Port** (default: `8100`).
+5. Optionally whitelist **Report Builder** reports in **Allowed Reports** (see Report Execution below).
+6. Optionally configure **Aggregate Fields** for custom query analytics (see Query Execution below).
+7. Optionally adjust **Sidecar Port** (default: `8100`).
 
 ## Running
 
@@ -143,7 +155,8 @@ Every save, rename, or delete on a whitelisted DocType automatically queues a li
 
 | Schedule | Task |
 |---|---|
-| Every 5 minutes | Mark stalled indexing jobs, chat messages, and sync log entries as Failed |
+| Every run | Sidecar health check → updates `RAG System Health` DocType |
+| Every 5 minutes | Mark stalled indexing jobs (>2 h), chat messages (>5 min), and sync log entries (>1 h) as Failed |
 | Daily | Prune `Sync Event Log` entries older than 30 days |
 
 ## Chat
@@ -169,9 +182,11 @@ All endpoints require authentication via Frappe session or API key.
 | Method | Description |
 |---|---|
 | `trigger_indexing(doctype)` | Enqueue a bulk indexing job; returns `{job_id, status}` |
+| `trigger_full_index()` | Enqueue jobs for all allowed DocTypes (skips those with an active job) |
 | `get_job_status(job_id)` | Return current progress and counters for a job |
 | `list_jobs(limit, page)` | Paginated list of AI Indexing Jobs |
 | `get_sync_health()` | Per-DocType success/failure counts (last 24 h) + failed entries list |
+| `sidecar_health()` | Check sidecar liveness; returns status and response time |
 | `retry_sync(sync_log_id)` | Re-queue a failed sync log entry |
 
 ### Chat (`frapperag.api.chat`)
@@ -182,6 +197,7 @@ All endpoints require authentication via Frappe session or API key.
 | `send_message(session_id, content)` | Queue a chat message; returns `{message_id, status}` |
 | `list_sessions(include_archived)` | List caller's sessions (newest first) |
 | `get_messages(session_id)` | Return all messages in a session (oldest first) |
+| `get_message_status(message_id)` | Poll message status (Pending / Completed / Failed) |
 | `archive_session(session_id)` | Transition session to Archived |
 
 ## Sidecar API
@@ -229,6 +245,26 @@ Administrators can whitelist **Report Builder** reports in **AI Assistant Settin
 5. Returns a `report_result` citation rendered as a formatted table in the chat UI (50-row cap with truncation note).
 
 Each whitelisted report entry supports an optional `description` (fed to Gemini as the tool description) and `default_filters` (JSON, pre-populated as tool argument defaults).
+
+## Query Execution
+
+FrappeRAG exposes predefined SQL analytics templates as Gemini tool calls. When a user asks a question best answered by structured data (e.g. "what are our top-selling items this month?"), Gemini selects the appropriate query template and provides validated parameters.
+
+### Available templates
+
+| Template | Description |
+|---|---|
+| `top_selling_items` | Top-selling items by quantity or amount within a date range |
+| `best_selling_pairs` | Frequently co-purchased item pairs |
+| `low_stock_recent_sales` | Items with low stock that had recent sales activity |
+| `customer_recent_sales` | Recent sales activity for a specific customer |
+| `supplier_recent_purchases` | Recent purchase activity for a specific supplier |
+| `inventory_status` | Current stock levels across warehouses |
+| `pending_orders` | Open sales/purchase orders pending fulfillment |
+
+Each template enforces parameter validation and per-DocType permission checks before execution. Results are returned as structured JSON citations in the chat thread.
+
+Administrators can configure custom aggregation fields via **AI Assistant Settings → Aggregate Fields** (`RAG Aggregate Field` child table).
 
 ## Contributing
 
