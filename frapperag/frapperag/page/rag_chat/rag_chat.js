@@ -240,12 +240,8 @@ frappe.pages["rag-chat"].on_page_load = function(wrapper) {
 
     function render_record_detail(c, container) {
         // Key-value card for a single Frappe document.
-        // Skips null/empty/array values and frappe meta fields.
-        var META = {
-            doctype:1, owner:1, creation:1, modified:1, modified_by:1,
-            docstatus:1, idx:1, parent:1, parenttype:1, parentfield:1, amended_from:1,
-        };
-
+        // Header fields render as a clean key-value grid.
+        // The "items" key (if it is a structured array) renders as a line-item table.
         var wrapper = document.createElement("div");
         wrapper.style.marginTop  = "8px";
         wrapper.style.fontSize   = "11px";
@@ -264,27 +260,34 @@ frappe.pages["rag-chat"].on_page_load = function(wrapper) {
         heading.appendChild(link);
         wrapper.appendChild(heading);
 
-        // Field table
-        var table = document.createElement("table");
-        table.style.borderCollapse = "collapse";
-        table.style.width          = "100%";
-
-        var tbody = document.createElement("tbody");
         var fields = c.fields || {};
+
+        // --- Header key-value card (scalar fields only) ---
+        var headerTable = document.createElement("table");
+        headerTable.style.borderCollapse = "collapse";
+        headerTable.style.width          = "100%";
+        headerTable.style.marginBottom   = "6px";
+        var headerTbody = document.createElement("tbody");
+
         Object.keys(fields).forEach(function(key) {
-            if (META[key] || key.startsWith("_")) return;
+            if (key === "items") return;                          // handled separately
             var val = fields[key];
             if (val === null || val === undefined || val === "") return;
             if (Array.isArray(val) || (typeof val === "object")) return;
 
+            var label = key.replace(/_/g, " ")
+                           .replace(/\b\w/g, function(l) { return l.toUpperCase(); });
+
             var tr = document.createElement("tr");
+
             var tdKey = document.createElement("td");
-            tdKey.style.padding     = "2px 6px";
+            tdKey.style.padding      = "2px 6px";
             tdKey.style.borderBottom = "1px solid #eee";
-            tdKey.style.color       = "#888";
-            tdKey.style.whiteSpace  = "nowrap";
+            tdKey.style.color        = "#888";
+            tdKey.style.whiteSpace   = "nowrap";
             tdKey.style.verticalAlign = "top";
-            tdKey.textContent = key.replace(/_/g, " ");
+            tdKey.style.width        = "35%";
+            tdKey.textContent = label;
 
             var tdVal = document.createElement("td");
             tdVal.style.padding      = "2px 6px";
@@ -294,10 +297,88 @@ frappe.pages["rag-chat"].on_page_load = function(wrapper) {
 
             tr.appendChild(tdKey);
             tr.appendChild(tdVal);
-            tbody.appendChild(tr);
+            headerTbody.appendChild(tr);
         });
-        table.appendChild(tbody);
-        wrapper.appendChild(table);
+        headerTable.appendChild(headerTbody);
+        if (headerTbody.children.length) wrapper.appendChild(headerTable);
+
+        // --- Items table (structured array) ---
+        var items = fields["items"];
+        if (Array.isArray(items) && items.length) {
+            // Collect union of keys across all rows to build dynamic columns,
+            // but use a preferred display order when the keys are known.
+            var ITEM_COL_ORDER = ["item_code", "item_name", "qty", "rate",
+                                  "amount", "basic_rate", "uom",
+                                  "s_warehouse", "t_warehouse"];
+            var keySet = {};
+            items.forEach(function(row) { Object.keys(row).forEach(function(k) { keySet[k] = 1; }); });
+            var cols = ITEM_COL_ORDER.filter(function(k) { return keySet[k]; });
+            // Append any remaining keys not in the preferred list
+            Object.keys(keySet).forEach(function(k) { if (cols.indexOf(k) === -1) cols.push(k); });
+
+            var colLabels = {
+                item_code:   "Item Code",
+                item_name:   "Item",
+                qty:         "Qty",
+                rate:        "Rate",
+                amount:      "Amount",
+                basic_rate:  "Rate",
+                uom:         "UOM",
+                s_warehouse: "From Warehouse",
+                t_warehouse: "To Warehouse",
+            };
+
+            var itemSection = document.createElement("div");
+            itemSection.style.marginTop = "6px";
+
+            var itemTitle = document.createElement("p");
+            itemTitle.style.fontWeight   = "600";
+            itemTitle.style.marginBottom = "4px";
+            itemTitle.style.color        = "#555";
+            itemTitle.textContent = "Items (" + items.length + ")";
+            itemSection.appendChild(itemTitle);
+
+            var itemTable = document.createElement("table");
+            itemTable.style.borderCollapse = "collapse";
+            itemTable.style.width          = "100%";
+            itemTable.style.fontSize       = "11px";
+
+            // thead
+            var thead = document.createElement("thead");
+            var headerRow = document.createElement("tr");
+            cols.forEach(function(col) {
+                var th = document.createElement("th");
+                th.style.borderBottom  = "2px solid #ccc";
+                th.style.padding       = "3px 6px";
+                th.style.textAlign     = "left";
+                th.style.whiteSpace    = "nowrap";
+                th.style.color         = "#555";
+                th.textContent = colLabels[col] || col.replace(/_/g, " ")
+                                                       .replace(/\b\w/g, function(l) { return l.toUpperCase(); });
+                headerRow.appendChild(th);
+            });
+            thead.appendChild(headerRow);
+            itemTable.appendChild(thead);
+
+            // tbody
+            var itemTbody = document.createElement("tbody");
+            items.forEach(function(row) {
+                var tr = document.createElement("tr");
+                cols.forEach(function(col) {
+                    var td = document.createElement("td");
+                    td.style.padding      = "2px 6px";
+                    td.style.borderBottom = "1px solid #eee";
+                    td.style.whiteSpace   = (col === "item_name") ? "normal" : "nowrap";
+                    var v = row[col];
+                    td.textContent = (v === null || v === undefined) ? "" : String(v);
+                    tr.appendChild(td);
+                });
+                itemTbody.appendChild(tr);
+            });
+            itemTable.appendChild(itemTbody);
+            itemSection.appendChild(itemTable);
+            wrapper.appendChild(itemSection);
+        }
 
         container.appendChild(wrapper);
     }

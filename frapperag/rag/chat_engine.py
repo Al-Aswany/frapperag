@@ -47,14 +47,26 @@ def generate_response(
             "tokens_used": tokens_used,
         }
 
-    # Existing RAG path — build deduplicated citation list
+    # Existing RAG path — build deduplicated citation list.
+    # Suppress doc citations when the model declines the question: the retrieved
+    # records were not used to answer, so surfacing them as citations is misleading
+    # and produces a raw-data wall in the UI.
     text = result["text"]
-    seen = set()
+
+    _DECLINE_PREFIXES = (
+        "I am sorry", "I'm sorry", "I cannot", "I can't",
+        "I am unable", "I'm unable", "Unfortunately",
+        "I do not have", "I don't have",
+    )
+    is_decline = text.strip().startswith(_DECLINE_PREFIXES)
+
     citations = []
-    for r in context_records:
-        key = (r["doctype"], r["name"])
-        if key not in seen:
-            seen.add(key)
-            citations.append({"type": "doc", "doctype": r["doctype"], "name": r["name"]})
+    if not is_decline:
+        seen = set()
+        for r in context_records:
+            key = (r["doctype"], r["name"])
+            if key not in seen:
+                seen.add(key)
+                citations.append({"type": "doc", "doctype": r["doctype"], "name": r["name"]})
 
     return {"text": text, "citations": citations, "tokens_used": tokens_used}

@@ -16,7 +16,7 @@ from decimal import Decimal
 
 import frappe
 
-from frapperag.rag.text_converter import to_text
+from frapperag.rag.text_converter import to_text, to_brief_summary
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -72,6 +72,125 @@ def _safe(v):
 
 
 # ---------------------------------------------------------------------------
+# Curated field sets for record_detail citations
+# ---------------------------------------------------------------------------
+
+# Per-DocType config: which header fields to expose and how to extract items.
+# Field types Code / Text Editor / HTML / Long Text are never included.
+_CURATED: dict = {
+    "Purchase Order": {
+        "header": ["supplier", "supplier_name", "transaction_date", "schedule_date",
+                   "status", "grand_total", "currency", "company"],
+        "items_field": "items",
+        "item_fields": ["item_code", "item_name", "qty", "rate", "amount"],
+    },
+    "Sales Invoice": {
+        "header": ["customer", "customer_name", "posting_date", "due_date",
+                   "status", "grand_total", "currency", "company"],
+        "items_field": "items",
+        "item_fields": ["item_code", "item_name", "qty", "rate", "amount"],
+    },
+    "Sales Order": {
+        "header": ["customer", "customer_name", "transaction_date", "delivery_date",
+                   "status", "grand_total", "currency", "company"],
+        "items_field": "items",
+        "item_fields": ["item_code", "item_name", "qty", "rate", "amount"],
+    },
+    "Purchase Invoice": {
+        "header": ["supplier", "supplier_name", "posting_date", "due_date",
+                   "status", "grand_total", "currency", "company"],
+        "items_field": "items",
+        "item_fields": ["item_code", "item_name", "qty", "rate", "amount"],
+    },
+    "Delivery Note": {
+        "header": ["customer", "customer_name", "posting_date", "status", "company"],
+        "items_field": "items",
+        "item_fields": ["item_code", "item_name", "qty", "rate", "amount"],
+    },
+    "Purchase Receipt": {
+        "header": ["supplier", "supplier_name", "posting_date", "status", "company"],
+        "items_field": "items",
+        "item_fields": ["item_code", "item_name", "qty", "rate", "amount"],
+    },
+    "Stock Entry": {
+        "header": ["stock_entry_type", "posting_date", "from_warehouse",
+                   "to_warehouse", "company"],
+        "items_field": "items",
+        "item_fields": ["item_code", "item_name", "qty", "basic_rate", "amount",
+                        "s_warehouse", "t_warehouse"],
+    },
+    "Customer": {
+        "header": ["customer_name", "customer_group", "territory",
+                   "customer_type", "default_currency"],
+        "items_field": None,
+    },
+    "Supplier": {
+        "header": ["supplier_name", "supplier_group", "supplier_type", "country"],
+        "items_field": None,
+    },
+    "Item": {
+        "header": ["item_name", "item_group", "stock_uom", "item_type",
+                   "valuation_rate", "standard_rate"],
+        "items_field": None,
+    },
+    "Item Price": {
+        "header": ["item_code", "item_name", "price_list", "price_list_rate",
+                   "currency", "valid_from", "valid_upto"],
+        "items_field": None,
+    },
+}
+
+
+def _curate_fields(doctype: str, doc_dict: dict) -> dict:
+    """Return a curated, JSON-safe field set for the citation.
+
+    Header fields come from the per-DocType allowlist in _CURATED.
+    The items child table (if present) is extracted as a structured array
+    [{item_code, item_name, qty, rate, amount}] — never a raw string.
+    Falls back to a safe dump of scalar primitives when the DocType is not
+    in the curated map.
+    """
+    config = _CURATED.get(doctype)
+    if not config:
+        # Fallback: expose only JSON primitives, skip child tables and privates.
+        return {
+            k: _safe(v)
+            for k, v in doc_dict.items()
+            if not k.startswith("_") and isinstance(v, _json_primitives)
+        }
+
+    result: dict = {}
+
+    # Header fields
+    for field in config["header"]:
+        val = doc_dict.get(field)
+        if val is None or val == "":
+            continue
+        result[field] = _safe(val)
+
+    # Items child table → structured array
+    items_field = config.get("items_field")
+    if items_field:
+        raw_items = doc_dict.get(items_field) or []
+        item_fields = config.get("item_fields", [])
+        curated_items = []
+        for row in raw_items:
+            if not isinstance(row, dict):
+                continue
+            entry = {}
+            for f in item_fields:
+                v = row.get(f)
+                if v is not None and v != "":
+                    entry[f] = _safe(v)
+            if entry:
+                curated_items.append(entry)
+        if curated_items:
+            result["items"] = curated_items
+
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Template execute functions
 # ---------------------------------------------------------------------------
 
@@ -107,21 +226,18 @@ def _execute_record_lookup(params: dict, user: str) -> dict:
 
     doc_dict = doc.as_dict()
 
-    # Build the narrative using text_converter — same text the vector store indexed.
-    narrative = to_text(doctype, doc_dict)
+    # Use a brief header-only summary as the tool-result narrative so the LLM
+    # response stays concise.  Full item details are in the structured citation.
+    # to_text() (verbose, with all items) is used only by the vector indexer.
+    narrative = to_brief_summary(doctype, doc_dict)
     if not narrative:
-        # Fallback for any DocType that to_text doesn't cover (shouldn't happen
-        # given ALLOWED_LOOKUP_DOCTYPES == SUPPORTED_DOCTYPES, but be safe).
         narrative = f"Here are the details for {doctype} '{name}':"
-
-    # Coerce all field values to JSON-safe types.
-    safe_fields = {k: _safe(v) for k, v in doc_dict.items() if not k.startswith("__")}
 
     citation = {
         "type": "record_detail",
         "doctype": doctype,
         "name": name,
-        "fields": safe_fields,
+        "fields": _curate_fields(doctype, doc_dict),
     }
     return {"text": narrative, "citations": [citation], "tokens_used": 0}
 
@@ -705,10 +821,14 @@ QUERY_TEMPLATES: dict = {
             "concrete YYYY-MM-DD from_date / to_date values using today's date. "
             "You can also filter by any allowlisted field using filter_field + filter_value "
             "(e.g. filter_field='customer', filter_value='Acme Corp'). "
+            "IMPORTANT: Do NOT set group_by='name' — 'name' is never an allowed group-by "
+            "field. Questions like 'what X were created' or 'list X' mean COUNT with no "
+            "group_by (return the total count), not a per-record breakdown. "
             "Examples: "
             "'How many purchase invoices were submitted last month?', "
             "'What is the total grand total of submitted sales orders this year?', "
-            "'How many stock entries were created in the last 7 days?', "
+            "'What stock entries were created in the last 7 days?' → COUNT Stock Entry with date filter, no group_by, "
+            "'How many stock entries were created this month?' → COUNT Stock Entry with date filter, "
             "'Show the count of purchase invoices grouped by supplier last quarter', "
             "'What is the average invoice value for submitted purchase invoices in March?', "
             "'How many sales orders have status Completed?', "

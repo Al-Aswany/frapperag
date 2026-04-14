@@ -19,6 +19,7 @@ def to_text(doctype: str, doc: dict) -> str | None:
     """Convert a Frappe document dict to a human-readable text summary.
 
     Returns None for unsupported doctypes; caller counts the record as skipped.
+    Used for vector-store indexing — includes full item details for searchability.
     """
     converters = {
         "Sales Invoice": _sales_invoice_text,
@@ -35,6 +36,111 @@ def to_text(doctype: str, doc: dict) -> str | None:
     }
     fn = converters.get(doctype)
     return fn(doc) if fn else None
+
+
+def to_brief_summary(doctype: str, doc: dict) -> str | None:
+    """Return a concise header-only summary for use as a tool-result narrative.
+
+    Omits the full item list — items are delivered to the frontend as a
+    structured citation array and do not need to appear in the LLM context.
+    Falls back to to_text() for DocTypes without a dedicated brief converter.
+    """
+    brief_converters = {
+        "Purchase Order":    _purchase_order_brief,
+        "Sales Invoice":     _sales_invoice_brief,
+        "Sales Order":       _sales_order_brief,
+        "Purchase Invoice":  _purchase_invoice_brief,
+        "Delivery Note":     _delivery_note_brief,
+        "Purchase Receipt":  _purchase_receipt_brief,
+        "Stock Entry":       _stock_entry_brief,
+    }
+    fn = brief_converters.get(doctype)
+    if fn:
+        return fn(doc)
+    return to_text(doctype, doc)
+
+
+# ---------------------------------------------------------------------------
+# Brief (header-only) converters — used for tool-result narratives
+# ---------------------------------------------------------------------------
+
+def _purchase_order_brief(d: dict) -> str:
+    n = len(d.get("items") or [])
+    return (
+        f"Purchase Order {d['name']} dated {d.get('transaction_date')} "
+        f"from {d.get('supplier_name')}. "
+        f"Grand total: {d.get('grand_total')} {d.get('currency')}. "
+        f"Status: {d.get('status')}. "
+        f"{n} line item(s) — see the details card below."
+    )
+
+
+def _sales_invoice_brief(d: dict) -> str:
+    n = len(d.get("items") or [])
+    return (
+        f"Sales Invoice {d['name']} issued on {d.get('posting_date')} "
+        f"to {d.get('customer_name')}. "
+        f"Grand total: {d.get('grand_total')} {d.get('currency')}. "
+        f"Status: {d.get('status')}. Due: {d.get('due_date')}. "
+        f"{n} line item(s) — see the details card below."
+    )
+
+
+def _sales_order_brief(d: dict) -> str:
+    n = len(d.get("items") or [])
+    return (
+        f"Sales Order {d['name']} dated {d.get('transaction_date')} "
+        f"for {d.get('customer_name')}. "
+        f"Grand total: {d.get('grand_total')} {d.get('currency')}. "
+        f"Status: {d.get('status')}. "
+        f"{n} line item(s) — see the details card below."
+    )
+
+
+def _purchase_invoice_brief(d: dict) -> str:
+    n = len(d.get("items") or [])
+    date = d.get("bill_date") or d.get("posting_date")
+    return (
+        f"Purchase Invoice {d['name']} dated {date} "
+        f"from {d.get('supplier_name')}. "
+        f"Grand total: {d.get('grand_total')} {d.get('currency')}. "
+        f"Outstanding: {d.get('outstanding_amount')}. "
+        f"{n} line item(s) — see the details card below."
+    )
+
+
+def _delivery_note_brief(d: dict) -> str:
+    n = len(d.get("items") or [])
+    return (
+        f"Delivery Note {d['name']} posted on {d.get('posting_date')} "
+        f"for {d.get('customer_name')}. "
+        f"Status: {d.get('status')}. "
+        f"{n} line item(s) — see the details card below."
+    )
+
+
+def _purchase_receipt_brief(d: dict) -> str:
+    n = len(d.get("items") or [])
+    return (
+        f"Purchase Receipt {d['name']} posted on {d.get('posting_date')} "
+        f"from {d.get('supplier_name')}. "
+        f"Status: {d.get('status')}. "
+        f"{n} line item(s) — see the details card below."
+    )
+
+
+def _stock_entry_brief(d: dict) -> str:
+    n = len(d.get("items") or [])
+    parts = [
+        f"Stock Entry {d['name']} ({d.get('stock_entry_type')}) "
+        f"posted on {d.get('posting_date')}.",
+    ]
+    if d.get("from_warehouse"):
+        parts.append(f"From: {d.get('from_warehouse')}.")
+    if d.get("to_warehouse"):
+        parts.append(f"To: {d.get('to_warehouse')}.")
+    parts.append(f"{n} line item(s) — see the details card below.")
+    return " ".join(parts)
 
 
 def _sales_invoice_text(d: dict) -> str:
