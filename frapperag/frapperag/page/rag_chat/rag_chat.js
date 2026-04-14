@@ -80,41 +80,74 @@ frappe.pages["rag-chat"].on_page_load = function(wrapper) {
         return frappe.markdown ? frappe.markdown(text || "") : frappe.utils.escape_html(text || "").replace(/\n/g, "<br>");
     }
 
-    function build_citations_html(citations_raw) {
-        if (!citations_raw) return "";
+    // Render one citation item into a container element.
+    function render_citation(c, container) {
+        if (c.type === "report_result") {
+            render_report_result(c, container);
+        } else if (c.type === "query_result") {
+            render_query_result(c, container);
+        } else if (c.type === "record_detail") {
+            render_record_detail(c, container);
+        } else {
+            // Fallback doc-link chip (type === "doc" or absent)
+            var a = document.createElement("a");
+            a.href        = "/app/" + frappe.router.slug(c.doctype) + "/" + c.name;
+            a.target      = "_blank";
+            a.style.marginRight = "8px";
+            a.style.color       = "#5e64ff";
+            a.textContent = frappe.utils.escape_html(c.doctype) + ": "
+                          + frappe.utils.escape_html(c.name);
+            container.appendChild(a);
+        }
+    }
+
+    // Returns a DOM element for the citation strip, or null when there is nothing
+    // to render. Citations are only tool-call results (report_result, query_result,
+    // record_detail) — retriever candidates are stored in context_sources and never
+    // shown here. At most 5 items are visible; extras collapse behind "+N more".
+    function build_citations_el(citations_raw) {
+        if (!citations_raw) return null;
         try {
             var cites = typeof citations_raw === "string"
                 ? JSON.parse(citations_raw) : citations_raw;
-            if (!cites || !cites.length) return "";
+            if (!cites || !cites.length) return null;
+
+            var VISIBLE_CAP = 5;
+            var visible = cites.slice(0, VISIBLE_CAP);
+            var hidden  = cites.slice(VISIBLE_CAP);
 
             var wrapper = document.createElement("div");
             wrapper.style.marginTop = "6px";
             wrapper.style.fontSize  = "11px";
 
-            cites.forEach(function(c) {
-                if (c.type === "report_result") {
-                    render_report_result(c, wrapper);
-                } else if (c.type === "query_result") {
-                    render_query_result(c, wrapper);
-                } else if (c.type === "record_detail") {
-                    render_record_detail(c, wrapper);
-                } else {
-                    // Existing doc-link behaviour (type === "doc" or type absent)
-                    var a = document.createElement("a");
-                    a.href        = "/app/" + frappe.router.slug(c.doctype) + "/" + c.name;
-                    a.target      = "_blank";
-                    a.style.marginRight = "8px";
-                    a.style.color       = "#5e64ff";
-                    a.textContent = frappe.utils.escape_html(c.doctype) + ": "
-                                  + frappe.utils.escape_html(c.name);
-                    wrapper.appendChild(a);
-                }
-            });
+            visible.forEach(function(c) { render_citation(c, wrapper); });
 
-            // Return outer HTML so it can be injected into template literals
-            // (existing callers concatenate citations_html into a string template)
-            return wrapper.outerHTML;
-        } catch(e) { return ""; }
+            if (hidden.length) {
+                var extra = document.createElement("div");
+                extra.style.display = "none";
+                hidden.forEach(function(c) { render_citation(c, extra); });
+
+                var toggle = document.createElement("span");
+                toggle.style.cursor   = "pointer";
+                toggle.style.color    = "#5e64ff";
+                toggle.style.fontSize = "11px";
+                toggle.style.display  = "block";
+                toggle.style.marginTop = "4px";
+                toggle.textContent    = "+" + hidden.length + " more";
+                toggle.addEventListener("click", function() {
+                    var expanded = extra.style.display !== "none";
+                    extra.style.display = expanded ? "none" : "";
+                    toggle.textContent  = expanded
+                        ? "+" + hidden.length + " more"
+                        : "Show less";
+                });
+
+                wrapper.appendChild(toggle);
+                wrapper.appendChild(extra);
+            }
+
+            return wrapper;
+        } catch(e) { return null; }
     }
 
     function render_report_result(c, container) {
@@ -388,18 +421,22 @@ frappe.pages["rag-chat"].on_page_load = function(wrapper) {
         var status_note = m.status === "Pending" ? "<span style='color:#aaa;font-size:11px;display:block;'>(thinking\u2026)</span>"
                         : m.status === "Failed"  ? "<span style='color:red;font-size:11px;display:block;'>(failed)</span>"
                         : "";
-        var content_html    = render_content(m.content, is_user);
-        var citations_html  = is_user ? "" : build_citations_html(m.citations);
-        $(`
+        var content_html = render_content(m.content, is_user);
+        var $msg = $(`
             <div class="rag-msg rag-msg-${m.role}" data-id="${m.message_id || ''}"
                  style="margin-bottom:12px; text-align:${is_user ? 'right' : 'left'};">
                 <div style="display:inline-block; max-width:75%; padding:10px 14px; border-radius:12px;
                             background:${is_user ? '#5e64ff' : '#f5f5f5'};
                             color:${is_user ? '#fff' : '#333'};">
-                    ${content_html}${status_note}${citations_html}
+                    ${content_html}${status_note}
                 </div>
             </div>
-        `).appendTo($container);
+        `);
+        if (!is_user) {
+            var cites_el = build_citations_el(m.citations);
+            if (cites_el) $msg.find("> div").append(cites_el);
+        }
+        $msg.appendTo($container);
     }
 
     function set_input_locked(locked) {
@@ -532,16 +569,18 @@ frappe.pages["rag-chat"].on_page_load = function(wrapper) {
             var $msgs = $("#rag-messages");
 
             if (data.status === "Completed") {
-                var content_html   = render_content(data.content, false);
-                var citations_html = build_citations_html(data.citations);
-                $(`
+                var content_html = render_content(data.content, false);
+                var $bubble = $(`
                     <div class="rag-msg rag-msg-assistant" style="margin-bottom:12px;">
                         <div style="display:inline-block; max-width:75%; padding:10px 14px;
                                     border-radius:12px; background:#f5f5f5; color:#333;">
-                            ${content_html}${citations_html}
+                            ${content_html}
                         </div>
                     </div>
-                `).appendTo($msgs);
+                `);
+                var cites_el = build_citations_el(data.citations);
+                if (cites_el) $bubble.find("> div").append(cites_el);
+                $bubble.appendTo($msgs);
             } else if (data.status === "Failed") {
                 var err_text = data.failure_reason
                     || "The AI assistant encountered an error. Please try again.";

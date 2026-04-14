@@ -13,6 +13,7 @@
   "tokens_used",
   "section_citations",
   "citations",
+  "context_sources",
   "section_error",
   "error_detail",
   "failure_reason"
@@ -65,6 +66,11 @@
    "fieldname": "citations",
    "fieldtype": "Long Text",
    "label": "Citations"
+  },
+  {
+   "fieldname": "context_sources",
+   "fieldtype": "Long Text",
+   "label": "Context Sources"
   },
   {
    "collapsible": 1,

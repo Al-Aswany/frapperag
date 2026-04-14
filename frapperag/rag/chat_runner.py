@@ -207,6 +207,18 @@ def run_chat_job(message_id: str, session_id: str, user: str, question: str = ""
             final_citations = result["citations"]
             tokens_used = result["tokens_used"]
 
+        # Separate tool-call results from retriever candidates.
+        # citations      → only items the AI actually used (report_result, query_result,
+        #                  record_detail) — rendered as chips in the UI.
+        # context_sources → retriever candidates that were passed to the prompt as
+        #                   background context — stored for auditability, not shown in UI.
+        _TOOL_RESULT_TYPES = frozenset({"report_result", "query_result", "record_detail"})
+        citations = [c for c in (final_citations or []) if c.get("type") in _TOOL_RESULT_TYPES]
+        context_sources = [
+            {"doctype": r["doctype"], "name": r["name"]}
+            for r in filtered
+        ]
+
         # 7. Update the user's Pending message to Completed (bypass ORM lifecycle)
         #
         # RAW SQL COUPLING — `tabChat Message` UPDATE (success path)
@@ -242,12 +254,14 @@ def run_chat_job(message_id: str, session_id: str, user: str, question: str = ""
         frappe.db.sql(
             """INSERT INTO `tabChat Message`
                (name, creation, modified, modified_by, owner, docstatus, idx,
-                session, role, content, citations, status, tokens_used)
-               VALUES (%s, %s, %s, %s, %s, 0, 0, %s, %s, %s, %s, %s, %s)""",
+                session, role, content, citations, context_sources, status, tokens_used)
+               VALUES (%s, %s, %s, %s, %s, 0, 0, %s, %s, %s, %s, %s, %s, %s)""",
             (
                 reply_name, now, now, user, user,
                 session_id, "assistant", final_text,
-                json.dumps(final_citations, default=str), "Completed", tokens_used,
+                json.dumps(citations, default=str),
+                json.dumps(context_sources, default=str),
+                "Completed", tokens_used,
             ),
         )
         _log().info(f"[TIMING][{message_id}] reply_insert {_time.monotonic() - t0:.3f}s")
@@ -275,7 +289,7 @@ def run_chat_job(message_id: str, session_id: str, user: str, question: str = ""
                 "session_id":  session_id,
                 "status":      "Completed",
                 "content":     final_text,
-                "citations":   final_citations,
+                "citations":   citations,
                 "tokens_used": tokens_used,
             },
             user=user,
