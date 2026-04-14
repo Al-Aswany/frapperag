@@ -1,4 +1,4 @@
-# Phase 9 Backlog
+Backlog
 
 ## EM-03 Timeout (non-regression)
 
@@ -10,3 +10,7 @@
   1. Increase per-session or per-question timeout beyond 120s.
   2. Run Empty Results in its own isolated session (separate from slow categories).
   3. Investigate why VG-01 (69s) and CA-02 (51s) are slow — may be a sidecar retry/backoff issue.
+
+ 
+Production needs nginx in front so socket.io actually works and users don't eat the 2s poll floor on every message.
+Keep the polling loop even after socket.io works — it's cheap insurance against dropped events from reconnects, worker restarts, and backgrounded tabs.
