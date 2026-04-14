@@ -1,0 +1,52 @@
+# FrappeRAG Conversation Summary
+
+## Project Context
+FrappeRAG — Arabic+English RAG assistant for ERPNext. Vector store (LanceDB) + Gemini 2.5 Flash, runs entirely inside Frappe bench. 11 DocTypes supported, 7 constitutional principles (Frappe-native, data isolation, permission-aware, zero external infra, async-default, zero-friction install, manual testing only).
+
+## Phases 1–6 Status
+Built and shipped: RAG pipeline, chat core, incremental sync, DocType coverage (11 types), Phase 5 report tool calling, Phase 6 production hardening (health dashboard, retry logic, structured logging, config validation). All committed.
+
+## Staging Deployment Journey (One Long Day)
+**Install fixes applied:** `requires-python >= 3.10`, CPU-only PyTorch (avoided 2GB CUDA download), `after_install` path fix for `bench/rag/`, manual dep install via pip.
+
+**Critical bugs discovered during Phase 7 ad-hoc testing:**
+- **Bug 7-B-001 (High, latent):** JSON date serialization fails in `chat_runner.py` line 234. Fix: `default=str`.
+- **Bug 7-B-002 (Critical, workaround applied):** `DocIndexerTool.execute()` ignores `name` arg and enqueues full-DocType background jobs. Bulk script silently created 5,546 background jobs instead of indexing 5,546 records. Only `v3_customer` table existed on disk despite "success" reports. Fixed by switching to direct `upsert_record` calls, then re-indexed successfully: 5,543 records across 10 DocTypes, all 10 `.lance` tables now on disk.
+- **Finding 7-D-002 (High UX):** Vector retrieval cannot find records by exact alphanumeric ID (SINV-IR-00657 test). Dense embeddings treat IDs as semantic noise. Needs hybrid retrieval.
+- **Finding 7-D-001 (Low):** 3 orphaned Sales Invoices reference missing `SSS POS` module. Data issue, not a FrappeRAG bug.
+
+## Phase 7 Formal Testing
+Executed 30-question matrix (10 categories × 3 questions) via automated runner. Results:
+- **Verdict: NOT READY** per SC-005 (English Lookups 0%, must be 100%)
+- **100% pass:** Out-of-Scope, Vague, Capability, Permissions (all the "honesty" categories)
+- **0% pass:** English Lookups, Aggregations, Cross-DocType, Stock
+- **Root cause:** all failures trace to one gap — the 4 whitelisted reports provide only list-level access, no record-level lookup tool exists
+- The AI never hallucinated, never leaked restricted data, never lied about its capabilities — hardest parts validated
+
+## Demo Outcome (Tonight)
+Stakeholder liked what he saw. Asked for a **stable version for further testing** with example questions: *"What are the two most-selling items together?"* and *"What are the top 10 missing items based on our last 6 months of sales?"* Explicitly said to postpone new features otherwise. User has **2+ weeks** available.
+
+## Next Phase: FrappeRAG v1.0 (Productization, not Phase 8)
+
+**Architectural decision needed:** the stakeholder's analytical questions cannot be answered by current tools. Three options discussed:
+- **Option 1:** Whitelist ERPNext Script Reports (3-4 days, injection risk)
+- **Option 2:** Custom Report Builder reports (2 days, low risk, doesn't solve item pairs)
+- **Option 3 (recommended):** `ExecuteQuery` tool with parameterized SQL templates in `query_executor.py` (5-7 days, safest long-term, solves both example questions via templates like `top_selling_items`, `best_selling_pairs`, `low_stock_recent_sales`)
+
+
+**Discipline rules:** no feature creep (log ideas to `PHASE_9_BACKLOG.md`), commit daily, daily smoke test of 5 baseline questions, `PHASE_8_JOURNAL.md` for decision tracking.
+
+**Immediate actions (next hour):**
+1. Commit Phase 5 + Phase 6 + Phase 7 fixes, tag v0.9-staging
+2. Create `PHASE_8_PLAN.md` with 10-day schedule
+3. Fix Bug 7-B-001 (one-line change), commit as v0.9.1 hotfix
+4. Send stakeholder acknowledgment with 2-week timeline and promise of mid-point check-in
+
+## Key Architectural Insights from This Conversation
+- Phase 5 report tools were masking broken RAG retrieval during early testing (only Customer table existed)
+- "Zero silent failures" Phase 6 principle had one gap: `DocIndexerTool.execute()` interface returned success without validating inputs
+- Vector retrieval's inability to handle exact IDs is a known limitation of dense embeddings, not a FrappeRAG bug — solved industry-wide via hybrid retrieval
+- The Phase 7 test matrix revealed that when given questions it can't answer, FrappeRAG refuses honestly — that's the hardest thing to get right in a RAG system
+- Stakeholder wants *stable* and *useful for his specific questions* — tension resolved by doing stability work in Week 1 and analytics work in Week 2
+
+---

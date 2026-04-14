@@ -6,7 +6,7 @@ app_email     = "mahmudhussain2001ab@gmail.com"
 app_license   = "mit"
 
 after_install = "frapperag.setup.install.after_install"
-after_migrate = "frapperag.setup.install.seed_allowed_doctypes"
+after_migrate = "frapperag.setup.install.seed_all_settings"
 
 fixtures = [
     {"dt": "Role", "filters": [["name", "in", ["RAG Admin", "RAG User"]]]},

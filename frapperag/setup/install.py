@@ -7,12 +7,12 @@ def after_install():
     os.makedirs(rag_path, exist_ok=True)
     _ensure_existing_lancedb_indices(rag_path)
     _ensure_sidecar_procfile_entry()
-    seed_allowed_doctypes()
+    seed_all_settings()
     frappe.db.commit()
 
 
 def _ensure_existing_lancedb_indices(rag_path: str) -> None:
-    """Create ANN vector indices on any v1_* LanceDB tables that already exist.
+    """Create ANN vector indices on any v3_* LanceDB tables that already exist.
 
     On a fresh install this is a no-op (no tables yet).  On an upgrade where
     the DB already holds indexed data, this backfills the IVF_PQ indices so
@@ -23,7 +23,7 @@ def _ensure_existing_lancedb_indices(rag_path: str) -> None:
     try:
         db = lancedb.connect(rag_path)
         for table_name in db.table_names():
-            if not table_name.startswith("v1_"):
+            if not table_name.startswith("v3_"):
                 continue
             try:
                 table = db.open_table(table_name)
@@ -114,30 +114,99 @@ _DEFAULT_DOCTYPES = [
     "Item Price", "Stock Entry",
 ]
 
+_DEFAULT_ROLES = [
+    "System Manager",
+    "RAG Admin",
+]
 
-def seed_allowed_doctypes() -> None:
-    """Idempotently append missing DocTypes to the AI Assistant Settings whitelist.
+_DEFAULT_REPORTS = [
+    {"report": "AI Supplier by Country", "description": "Supplier list"},
+    {"report": "Customer by Territory"},
+    {"report": "Item Active List"},
+    {"report": "Sales Invoice Recent"},
+]
 
-    Called from after_install() (fresh install) and as the after_migrate hook
-    (upgrades). Safe to run multiple times - existing rows are never duplicated.
+_DEFAULT_AGGREGATE_FIELDS = [
+    {"doctype_name": "Purchase Invoice", "fieldname": "grand_total", "allow_aggregate": 1},
+    {"doctype_name": "Purchase Invoice", "fieldname": "supplier"},
+    {"doctype_name": "Purchase Invoice", "fieldname": "status"},
+    {"doctype_name": "Sales Order", "fieldname": "grand_total", "allow_aggregate": 1},
+    {"doctype_name": "Sales Order", "fieldname": "customer"},
+    {"doctype_name": "Sales Order", "fieldname": "status"},
+    {"doctype_name": "Stock Entry", "fieldname": "stock_entry_type"},
+    {"doctype_name": "Purchase Order", "fieldname": "grand_total", "allow_aggregate": 1},
+    {"doctype_name": "Purchase Order", "fieldname": "supplier"},
+    {"doctype_name": "Purchase Order", "fieldname": "status"},
+    {"doctype_name": "Sales Invoice", "fieldname": "grand_total", "allow_aggregate": 1},
+    {"doctype_name": "Sales Invoice", "fieldname": "customer"},
+    {"doctype_name": "Sales Invoice", "fieldname": "status"},
+]
+
+
+def seed_all_settings() -> None:
+    """Idempotently configure AI Assistant Settings with production defaults.
+
+    Seeds the API key, allowed doctypes, roles, reports, and aggregate fields
+    so the app works immediately after install with no manual configuration.
+    Called from after_install() and as the after_migrate hook.
     """
     if not frappe.db.exists("DocType", "AI Assistant Settings"):
         return
+
     settings = frappe.get_single("AI Assistant Settings")
-    existing = {
-        # `doctype_name` is the current child-table field; keep fallback for
-        # older rows created before the field rename.
+    changed = False
+
+    # --- Enable + sidecar port ---
+    if not settings.is_enabled:
+        settings.is_enabled = 1
+        changed = True
+
+    if not settings.sidecar_port:
+        settings.sidecar_port = 8100
+        changed = True
+
+    # --- Allowed DocTypes ---
+    existing_doctypes = {
         getattr(row, "doctype_name", None) or getattr(row, "document_type", None)
         for row in (settings.allowed_doctypes or [])
     }
-    existing.discard(None)
-    changed = False
+    existing_doctypes.discard(None)
     for dt in _DEFAULT_DOCTYPES:
-        if dt not in existing:
+        if dt not in existing_doctypes:
             settings.append("allowed_doctypes", {"doctype_name": dt})
             changed = True
+
+    # --- Allowed Roles ---
+    existing_roles = {row.role for row in (settings.allowed_roles or [])}
+    for role in _DEFAULT_ROLES:
+        if role not in existing_roles:
+            settings.append("allowed_roles", {"role": role})
+            changed = True
+
+    # --- Allowed Reports ---
+    existing_reports = {row.report for row in (settings.allowed_reports or [])}
+    for entry in _DEFAULT_REPORTS:
+        if entry["report"] not in existing_reports:
+            settings.append("allowed_reports", entry)
+            changed = True
+
+    # --- Aggregate Fields ---
+    existing_agg = {
+        (row.doctype_name, row.fieldname)
+        for row in (settings.aggregate_fields or [])
+    }
+    for entry in _DEFAULT_AGGREGATE_FIELDS:
+        key = (entry["doctype_name"], entry["fieldname"])
+        if key not in existing_agg:
+            settings.append("aggregate_fields", entry)
+            changed = True
+
     if changed:
         settings.flags.ignore_validate = True
         settings.flags.ignore_mandatory = True
         settings.save(ignore_permissions=True)
         frappe.db.commit()
+
+
+# Keep backward-compatible alias for the after_migrate hook
+seed_allowed_doctypes = seed_all_settings
