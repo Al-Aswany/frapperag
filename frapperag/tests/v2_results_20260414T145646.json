@@ -1,0 +1,2196 @@
+{
+  "meta": {
+    "runner_version": "2.0",
+    "executed_at": "2026-04-14T15:05:06",
+    "matrix": "tests/v2_regression_matrix.json",
+    "rag_test_user": "rag-tester@golive.site1",
+    "only_category": null,
+    "total_questions": 50
+  },
+  "results": [
+    {
+      "id": "EN-01",
+      "category": "english_lookup",
+      "question": "What is SINV-IR-00657?",
+      "run_as": "administrator",
+      "response": "Sales Invoice SINV-IR-00657 issued on 2026-03-29 to Bothaina. Grand total: 30.0 JOD. Status: Paid. Due: 2026-03-29. 2 line item(s) — see the details card below.",
+      "citations": [
+        {
+          "type": "record_detail",
+          "doctype": "Sales Invoice",
+          "name": "SINV-IR-00657",
+          "fields": {
+            "customer": "Bothaina",
+            "customer_name": "Bothaina",
+            "posting_date": "2026-03-29",
+            "due_date": "2026-03-29",
+            "status": "Paid",
+            "grand_total": 30.0,
+            "currency": "JOD",
+            "company": "Modern System",
+            "items": [
+              {
+                "item_code": "6290361552506",
+                "item_name": "Blupebble Graphene Tempered Glass 2.5DPrivacy Applicator iPhone 16 Plus BPROCKIP16PLUS6.7AP-PRV",
+                "qty": 1.0,
+                "rate": 12.931,
+                "amount": 12.931
+              },
+              {
+                "item_code": "6954661870974",
+                "item_name": "JCPal Preserver Camera Lens Protector for iPhone 16/16 Plus (Transparent)",
+                "qty": 1.0,
+                "rate": 12.931,
+                "amount": 12.931
+              }
+            ]
+          }
+        }
+      ],
+      "citation_count": 1,
+      "citation_types": [
+        "record_detail"
+      ],
+      "elapsed_s": 6.06,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "EN-02",
+      "category": "english_lookup",
+      "question": "Show me customer Bothaina.",
+      "run_as": "administrator",
+      "response": "Customer Bothaina (ID: Bothaina). Type: Individual. Customer group: Retail. Territory: All Territories. Primary contact: not set. Outstanding amount: 0.",
+      "citations": [
+        {
+          "type": "record_detail",
+          "doctype": "Customer",
+          "name": "Bothaina",
+          "fields": {
+            "customer_name": "Bothaina",
+            "customer_group": "Retail",
+            "territory": "All Territories",
+            "customer_type": "Individual"
+          }
+        }
+      ],
+      "citation_count": 1,
+      "citation_types": [
+        "record_detail"
+      ],
+      "elapsed_s": 6.06,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "EN-03",
+      "category": "english_lookup",
+      "question": "What is PUR-ORD-2026-00077?",
+      "run_as": "administrator",
+      "response": "Purchase Order PUR-ORD-2026-00077 dated 2026-03-26 from شركة الاشارة الرائدة لتجارة الاكسسوارات. Grand total: 19963.02 JOD. Status: To Bill. 28 line item(s) — see the details card below.",
+      "citations": [
+        {
+          "type": "record_detail",
+          "doctype": "Purchase Order",
+          "name": "PUR-ORD-2026-00077",
+          "fields": {
+            "supplier": "شركة الاشارة الرائدة لتجارة الاكسسوارات",
+            "supplier_name": "شركة الاشارة الرائدة لتجارة الاكسسوارات",
+            "transaction_date": "2026-03-26",
+            "schedule_date": "2026-03-26",
+            "status": "To Bill",
+            "grand_total": 19963.02,
+            "currency": "JOD",
+            "company": "Modern System",
+            "items": [
+              {
+                "item_code": "745883904495",
+                "item_name": "BELKIN 20W ADAPTER 2PIN",
+                "qty": 240.0,
+                "rate": 4.5,
+                "amount": 1080.0
+              },
+              {
+                "item_code": "745883910151",
+                "item_name": "BELKIN 20W WITH C TO C CABLE",
+                "qty": 30.0,
+                "rate": 7.5,
+                "amount": 225.0
+              },
+              {
+                "item_code": "194644139964",
+                "item_name": "Soundcore SpaceOne Headphone ANC Blue",
+                "qty": 5.0,
+                "rate": 50.0,
+                "amount": 250.0
+              },
+              {
+                "item_code": "194644139827",
+                "item_name": "Soundcore SpaceOne Headphone ANC Black",
+                "qty": 5.0,
+                "rate": 50.0,
+                "amount": 250.0
+              },
+              {
+                "item_code": "194644200572",
+                "item_name": "Anker SOLIX C200 DC Portable Power Station",
+                "qty": 4.0,
+                "rate": 50.0,
+                "amount": 200.0
+              },
+              {
+                "item_code": "194644103590",
+                "item_name": "ANKER USB-C TO LIGHTNING CABLE BIO-BASED 6FT WHITE",
+                "qty": 30.0,
+                "rate": 105.0,
+                "amount": 3150.0
+              },
+              {
+                "item_code": "194644108557",
+                "item_name": "Anker 542 USB-C to Lightning Cable (Bio-Based 6ft)- Black",
+                "qty": 30.0,
+                "rate": 8.0,
+                "amount": 240.0
+              },
+              {
+                "item_code": "194644114510",
+                "item_name": "Anker 322 USB-C to Lightning Cable (3ft Braided) Black",
+                "qty": 30.0,
+                "rate": 8.0,
+                "amount": 240.0
+              },
+              {
+                "item_code": "194644226152",
+                "item_name": "A2699L11 Anker Charger 20W 1C Black",
+                "qty": 240.0,
+                "rate": 7.0,
+                "amount": 1680.0
+              },
+              {
+                "item_code": "194644213954",
+                "item_name": "Anker Charger 30W 1C Black",
+                "qty": 300.0,
+                "rate": 5.0,
+                "amount": 1500.0
+              },
+              {
+                "item_code": "194644114497",
+                "item_name": "Anker 322 USB-C to Lightning Cable (6ft Braided) Black",
+                "qty": 30.0,
+                "rate": 8.0,
+                "amount": 240.0
+              },
+              {
+                "item_code": "194644114480",
+                "item_name": "Anker Anker 322 USB-C to Lightning Cable [(Gft Braided) White",
+                "qty": 30.0,
+                "rate": 8.0,
+                "amount": 240.0
+              },
+              {
+                "item_code": "194644043612",
+                "item_name": "A3959H21 Soundcore R50i NC White",
+                "qty": 12.0,
+                "rate": 8.0,
+                "amount": 96.0
+              },
+              {
+                "item_code": "194644197421",
+                "item_name": "A3959H11 Soundcore R50i NC Black",
+                "qty": 12.0,
+                "rate": 16.0,
+                "amount": 192.0
+              },
+              {
+                "item_code": "194644043568",
+                "item_name": "ANKER R50I NC blue",
+                "qty": 12.0,
+                "rate": 16.0,
+                "amount": 192.0
+              },
+              {
+                "item_code": "194644041250",
+                "item_name": "ANKER R50I NC Green",
+                "qty": 12.0,
+                "rate": 16.0,
+                "amount": 192.0
+              },
+              {
+                "item_code": "194644041267",
+                "item_name": "A3959H51 Soundcore R50i NC Pink",
+                "qty": 12.0,
+                "rate": 16.0,
+                "amount": 192.0
+              },
+              {
+                "item_code": "194644209223",
+                "item_name": "A8060H12 Anker Zolo USB C to USB C Cable, (240W)(1.8m/6ft)Black",
+                "qty": 30.0,
+                "rate": 16.0,
+                "amount": 480.0
+              },
+              {
+                "item_code": "194644209230",
+                "item_name": "A8060H22 Anker Zolo USB C to USB C Cable (240W 1.8M/6ft)White",
+                "qty": 30.0,
+                "rate": 4.0,
+                "amount": 120.0
+              },
+              {
+                "item_code": "194644099053",
+                "item_name": "ANKER 737 CHARGER GANPRIME 120W BLACK 2 PIN BK",
+                "qty": 13.0,
+                "rate": 4.0,
+                "amount": 52.0
+              },
+              {
+                "item_code": "194644204488",
+                "item_name": "ANKER 523 POWER BANK 10000 30W",
+                "qty": 25.0,
+                "rate": 35.0,
+                "amount": 875.0
+              },
+              {
+                "item_code": "194644247287",
+                "item_name": "ANKER SOUNDCORE R60INC BLACK",
+                "qty": 12.0,
+                "rate": 23.0,
+                "amount": 276.0
+              },
+              {
+                "item_code": "194644247393",
+                "item_name": "ANKER SOUNDCORE R60INC PINK",
+                "qty": 12.0,
+                "rate": 20.0,
+                "amount": 240.0
+              },
+              {
+                "item_code": "194644247249",
+                "item_name": "ANKER SOUNDCORE R60INC WHITE",
+                "qty": 12.0,
+                "rate": 20.0,
+                "amount": 240.0
+              },
+              {
+                "item_code": "7971665212530",
+                "item_name": "ROCKYMILE TAB Glass Transparent (iPad And Tablet) 10 INCH",
+                "qty": 220.0,
+                "rate": 20.0,
+                "amount": 4400.0
+              },
+              {
+                "item_code": "7971665212547",
+                "item_name": "ROCKYMILE TAB GlasTransparent (iPad And Tablet12 INCH",
+                "qty": 120.0,
+                "rate": 1.5,
+                "amount": 180.0
+              },
+              {
+                "item_code": "6956896505508",
+                "item_name": "KUZOOM IPHONE GLASS HD 10 IN ONE",
+                "qty": 50.0,
+                "rate": 2.5,
+                "amount": 125.0
+              },
+              {
+                "item_code": "6956896505683",
+                "item_name": "KUZOOM IPHONEGLASS PRIVCY 10 IN",
+                "qty": 50.0,
+                "rate": 1.25,
+                "amount": 62.5
+              }
+            ]
+          }
+        }
+      ],
+      "citation_count": 1,
+      "citation_types": [
+        "record_detail"
+      ],
+      "elapsed_s": 6.11,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "EN-04",
+      "category": "english_lookup",
+      "question": "Look up the supplier ABM Care.",
+      "run_as": "administrator",
+      "response": "Supplier ABM Care (ID: ABM Care). Type: Company. Supplier group: International. Country: Jordan. Primary email: not set. Status: active.",
+      "citations": [
+        {
+          "type": "record_detail",
+          "doctype": "Supplier",
+          "name": "ABM Care",
+          "fields": {
+            "supplier_name": "ABM Care",
+            "supplier_group": "International",
+            "supplier_type": "Company",
+            "country": "Jordan"
+          }
+        }
+      ],
+      "citation_count": 1,
+      "citation_types": [
+        "record_detail"
+      ],
+      "elapsed_s": 6.06,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "EN-05",
+      "category": "english_lookup",
+      "question": "What is sales invoice SINV-SW-00722?",
+      "run_as": "administrator",
+      "response": "",
+      "citations": [],
+      "citation_count": 0,
+      "citation_types": [],
+      "elapsed_s": 9.07,
+      "status": "Completed",
+      "pass": false,
+      "failure_reason": "expected record_detail citation for tool='record_lookup', none found; expected_citation_type 'record_detail' not found (actual: [])"
+    },
+    {
+      "id": "AR-01",
+      "category": "arabic_lookup",
+      "question": "ما هي تفاصيل أمر الشراء PUR-ORD-2026-00077؟",
+      "run_as": "administrator",
+      "response": "Purchase Order PUR-ORD-2026-00077 dated 2026-03-26 from شركة الاشارة الرائدة لتجارة الاكسسوارات. Grand total: 19963.02 JOD. Status: To Bill. 28 line item(s) — see the details card below.",
+      "citations": [
+        {
+          "type": "record_detail",
+          "doctype": "Purchase Order",
+          "name": "PUR-ORD-2026-00077",
+          "fields": {
+            "supplier": "شركة الاشارة الرائدة لتجارة الاكسسوارات",
+            "supplier_name": "شركة الاشارة الرائدة لتجارة الاكسسوارات",
+            "transaction_date": "2026-03-26",
+            "schedule_date": "2026-03-26",
+            "status": "To Bill",
+            "grand_total": 19963.02,
+            "currency": "JOD",
+            "company": "Modern System",
+            "items": [
+              {
+                "item_code": "745883904495",
+                "item_name": "BELKIN 20W ADAPTER 2PIN",
+                "qty": 240.0,
+                "rate": 4.5,
+                "amount": 1080.0
+              },
+              {
+                "item_code": "745883910151",
+                "item_name": "BELKIN 20W WITH C TO C CABLE",
+                "qty": 30.0,
+                "rate": 7.5,
+                "amount": 225.0
+              },
+              {
+                "item_code": "194644139964",
+                "item_name": "Soundcore SpaceOne Headphone ANC Blue",
+                "qty": 5.0,
+                "rate": 50.0,
+                "amount": 250.0
+              },
+              {
+                "item_code": "194644139827",
+                "item_name": "Soundcore SpaceOne Headphone ANC Black",
+                "qty": 5.0,
+                "rate": 50.0,
+                "amount": 250.0
+              },
+              {
+                "item_code": "194644200572",
+                "item_name": "Anker SOLIX C200 DC Portable Power Station",
+                "qty": 4.0,
+                "rate": 50.0,
+                "amount": 200.0
+              },
+              {
+                "item_code": "194644103590",
+                "item_name": "ANKER USB-C TO LIGHTNING CABLE BIO-BASED 6FT WHITE",
+                "qty": 30.0,
+                "rate": 105.0,
+                "amount": 3150.0
+              },
+              {
+                "item_code": "194644108557",
+                "item_name": "Anker 542 USB-C to Lightning Cable (Bio-Based 6ft)- Black",
+                "qty": 30.0,
+                "rate": 8.0,
+                "amount": 240.0
+              },
+              {
+                "item_code": "194644114510",
+                "item_name": "Anker 322 USB-C to Lightning Cable (3ft Braided) Black",
+                "qty": 30.0,
+                "rate": 8.0,
+                "amount": 240.0
+              },
+              {
+                "item_code": "194644226152",
+                "item_name": "A2699L11 Anker Charger 20W 1C Black",
+                "qty": 240.0,
+                "rate": 7.0,
+                "amount": 1680.0
+              },
+              {
+                "item_code": "194644213954",
+                "item_name": "Anker Charger 30W 1C Black",
+                "qty": 300.0,
+                "rate": 5.0,
+                "amount": 1500.0
+              },
+              {
+                "item_code": "194644114497",
+                "item_name": "Anker 322 USB-C to Lightning Cable (6ft Braided) Black",
+                "qty": 30.0,
+                "rate": 8.0,
+                "amount": 240.0
+              },
+              {
+                "item_code": "194644114480",
+                "item_name": "Anker Anker 322 USB-C to Lightning Cable [(Gft Braided) White",
+                "qty": 30.0,
+                "rate": 8.0,
+                "amount": 240.0
+              },
+              {
+                "item_code": "194644043612",
+                "item_name": "A3959H21 Soundcore R50i NC White",
+                "qty": 12.0,
+                "rate": 8.0,
+                "amount": 96.0
+              },
+              {
+                "item_code": "194644197421",
+                "item_name": "A3959H11 Soundcore R50i NC Black",
+                "qty": 12.0,
+                "rate": 16.0,
+                "amount": 192.0
+              },
+              {
+                "item_code": "194644043568",
+                "item_name": "ANKER R50I NC blue",
+                "qty": 12.0,
+                "rate": 16.0,
+                "amount": 192.0
+              },
+              {
+                "item_code": "194644041250",
+                "item_name": "ANKER R50I NC Green",
+                "qty": 12.0,
+                "rate": 16.0,
+                "amount": 192.0
+              },
+              {
+                "item_code": "194644041267",
+                "item_name": "A3959H51 Soundcore R50i NC Pink",
+                "qty": 12.0,
+                "rate": 16.0,
+                "amount": 192.0
+              },
+              {
+                "item_code": "194644209223",
+                "item_name": "A8060H12 Anker Zolo USB C to USB C Cable, (240W)(1.8m/6ft)Black",
+                "qty": 30.0,
+                "rate": 16.0,
+                "amount": 480.0
+              },
+              {
+                "item_code": "194644209230",
+                "item_name": "A8060H22 Anker Zolo USB C to USB C Cable (240W 1.8M/6ft)White",
+                "qty": 30.0,
+                "rate": 4.0,
+                "amount": 120.0
+              },
+              {
+                "item_code": "194644099053",
+                "item_name": "ANKER 737 CHARGER GANPRIME 120W BLACK 2 PIN BK",
+                "qty": 13.0,
+                "rate": 4.0,
+                "amount": 52.0
+              },
+              {
+                "item_code": "194644204488",
+                "item_name": "ANKER 523 POWER BANK 10000 30W",
+                "qty": 25.0,
+                "rate": 35.0,
+                "amount": 875.0
+              },
+              {
+                "item_code": "194644247287",
+                "item_name": "ANKER SOUNDCORE R60INC BLACK",
+                "qty": 12.0,
+                "rate": 23.0,
+                "amount": 276.0
+              },
+              {
+                "item_code": "194644247393",
+                "item_name": "ANKER SOUNDCORE R60INC PINK",
+                "qty": 12.0,
+                "rate": 20.0,
+                "amount": 240.0
+              },
+              {
+                "item_code": "194644247249",
+                "item_name": "ANKER SOUNDCORE R60INC WHITE",
+                "qty": 12.0,
+                "rate": 20.0,
+                "amount": 240.0
+              },
+              {
+                "item_code": "7971665212530",
+                "item_name": "ROCKYMILE TAB Glass Transparent (iPad And Tablet) 10 INCH",
+                "qty": 220.0,
+                "rate": 20.0,
+                "amount": 4400.0
+              },
+              {
+                "item_code": "7971665212547",
+                "item_name": "ROCKYMILE TAB GlasTransparent (iPad And Tablet12 INCH",
+                "qty": 120.0,
+                "rate": 1.5,
+                "amount": 180.0
+              },
+              {
+                "item_code": "6956896505508",
+                "item_name": "KUZOOM IPHONE GLASS HD 10 IN ONE",
+                "qty": 50.0,
+                "rate": 2.5,
+                "amount": 125.0
+              },
+              {
+                "item_code": "6956896505683",
+                "item_name": "KUZOOM IPHONEGLASS PRIVCY 10 IN",
+                "qty": 50.0,
+                "rate": 1.25,
+                "amount": 62.5
+              }
+            ]
+          }
+        }
+      ],
+      "citation_count": 1,
+      "citation_types": [
+        "record_detail"
+      ],
+      "elapsed_s": 6.07,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "AR-02",
+      "category": "arabic_lookup",
+      "question": "أحضر فاتورة المبيعات SINV-IR-00657.",
+      "run_as": "administrator",
+      "response": "Sales Invoice SINV-IR-00657 issued on 2026-03-29 to Bothaina. Grand total: 30.0 JOD. Status: Paid. Due: 2026-03-29. 2 line item(s) — see the details card below.",
+      "citations": [
+        {
+          "type": "record_detail",
+          "doctype": "Sales Invoice",
+          "name": "SINV-IR-00657",
+          "fields": {
+            "customer": "Bothaina",
+            "customer_name": "Bothaina",
+            "posting_date": "2026-03-29",
+            "due_date": "2026-03-29",
+            "status": "Paid",
+            "grand_total": 30.0,
+            "currency": "JOD",
+            "company": "Modern System",
+            "items": [
+              {
+                "item_code": "6290361552506",
+                "item_name": "Blupebble Graphene Tempered Glass 2.5DPrivacy Applicator iPhone 16 Plus BPROCKIP16PLUS6.7AP-PRV",
+                "qty": 1.0,
+                "rate": 12.931,
+                "amount": 12.931
+              },
+              {
+                "item_code": "6954661870974",
+                "item_name": "JCPal Preserver Camera Lens Protector for iPhone 16/16 Plus (Transparent)",
+                "qty": 1.0,
+                "rate": 12.931,
+                "amount": 12.931
+              }
+            ]
+          }
+        }
+      ],
+      "citation_count": 1,
+      "citation_types": [
+        "record_detail"
+      ],
+      "elapsed_s": 6.07,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "AR-03",
+      "category": "arabic_lookup",
+      "question": "ما هو العميل بثينة؟",
+      "run_as": "administrator",
+      "response": "Customer Bothaina (ID: Bothaina). Type: Individual. Customer group: Retail. Territory: All Territories. Primary contact: not set. Outstanding amount: 0.",
+      "citations": [
+        {
+          "type": "record_detail",
+          "doctype": "Customer",
+          "name": "Bothaina",
+          "fields": {
+            "customer_name": "Bothaina",
+            "customer_group": "Retail",
+            "territory": "All Territories",
+            "customer_type": "Individual"
+          }
+        }
+      ],
+      "citation_count": 1,
+      "citation_types": [
+        "record_detail"
+      ],
+      "elapsed_s": 9.08,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "AR-04",
+      "category": "arabic_lookup",
+      "question": "ما هو عنوان البريد الإلكتروني للمورد جريس ومها تادرس؟",
+      "run_as": "administrator",
+      "response": "Supplier جريس ومها تادرس (ID: جريس ومها تادرس). Type: Company. Supplier group: Local. Country: Jordan. Primary email: not set. Status: active.",
+      "citations": [
+        {
+          "type": "record_detail",
+          "doctype": "Supplier",
+          "name": "جريس ومها تادرس",
+          "fields": {
+            "supplier_name": "جريس ومها تادرس",
+            "supplier_group": "Local",
+            "supplier_type": "Company",
+            "country": "Jordan"
+          }
+        }
+      ],
+      "citation_count": 1,
+      "citation_types": [
+        "record_detail"
+      ],
+      "elapsed_s": 6.06,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "AR-05",
+      "category": "arabic_lookup",
+      "question": "ما هو رقم هاتف العميل Rana Alotom؟",
+      "run_as": "administrator",
+      "response": "لا يوجد رقم هاتف للعميل Rana Alotom.",
+      "citations": [],
+      "citation_count": 0,
+      "citation_types": [],
+      "elapsed_s": 9.06,
+      "status": "Completed",
+      "pass": false,
+      "failure_reason": "expected record_detail citation for tool='record_lookup', none found; expected_citation_type 'record_detail' not found (actual: [])"
+    },
+    {
+      "id": "AG-01",
+      "category": "aggregation",
+      "question": "How many purchase invoices were submitted last month?",
+      "run_as": "administrator",
+      "response": "The COUNT(*) for Purchase Invoice is 0. (Filters: from 2026-03-01, to 2026-03-31, status = 'Submitted')",
+      "citations": [
+        {
+          "type": "query_result",
+          "template": "aggregate_doctype",
+          "columns": [
+            "COUNT(*)"
+          ],
+          "rows": [
+            [
+              0
+            ]
+          ],
+          "row_count": 1
+        }
+      ],
+      "citation_count": 1,
+      "citation_types": [
+        "query_result"
+      ],
+      "elapsed_s": 12.08,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "AG-02",
+      "category": "aggregation",
+      "question": "What is the total grand total of submitted purchase invoices this year?",
+      "run_as": "administrator",
+      "response": "The SUM(grand_total) for Purchase Invoice is None. (Filters: from 2026-01-01, to 2026-12-31, status = 'Submitted')",
+      "citations": [
+        {
+          "type": "query_result",
+          "template": "aggregate_doctype",
+          "columns": [
+            "SUM(grand_total)"
+          ],
+          "rows": [
+            [
+              null
+            ]
+          ],
+          "row_count": 1
+        }
+      ],
+      "citation_count": 1,
+      "citation_types": [
+        "query_result"
+      ],
+      "elapsed_s": 6.06,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "AG-03",
+      "category": "aggregation",
+      "question": "Show the count of sales orders grouped by status.",
+      "run_as": "administrator",
+      "response": "Here are the Sales Order records grouped by 'status' (COUNT(*)):",
+      "citations": [
+        {
+          "type": "query_result",
+          "template": "aggregate_doctype",
+          "columns": [
+            "status",
+            "COUNT(*)"
+          ],
+          "rows": [
+            [
+              "Completed",
+              80
+            ],
+            [
+              "To Deliver and Bill",
+              13
+            ],
+            [
+              "Closed",
+              8
+            ],
+            [
+              "To Deliver",
+              6
+            ]
+          ],
+          "row_count": 4
+        }
+      ],
+      "citation_count": 1,
+      "citation_types": [
+        "query_result"
+      ],
+      "elapsed_s": 6.06,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "AG-04",
+      "category": "aggregation",
+      "question": "How many sales invoices were submitted this month?",
+      "run_as": "administrator",
+      "response": "The COUNT(*) for Sales Invoice is 0. (Filters: from 2026-04-01, to 2026-04-14, status = 'Submitted')",
+      "citations": [
+        {
+          "type": "query_result",
+          "template": "aggregate_doctype",
+          "columns": [
+            "COUNT(*)"
+          ],
+          "rows": [
+            [
+              0
+            ]
+          ],
+          "row_count": 1
+        }
+      ],
+      "citation_count": 1,
+      "citation_types": [
+        "query_result"
+      ],
+      "elapsed_s": 6.06,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "AG-05",
+      "category": "aggregation",
+      "question": "Show the count of purchase invoices grouped by supplier this year.",
+      "run_as": "administrator",
+      "response": "Here are the Purchase Invoice records grouped by 'supplier' (COUNT(*)):",
+      "citations": [
+        {
+          "type": "query_result",
+          "template": "aggregate_doctype",
+          "columns": [
+            "supplier",
+            "COUNT(*)"
+          ],
+          "rows": [
+            [
+              "ABM Care - Jordan - Apple",
+              8
+            ],
+            [
+              "شركة تادرس و شركاهم للتخليص",
+              3
+            ],
+            [
+              "MAXON",
+              2
+            ],
+            [
+              "شركة الاشارة الرائدة لتجارة الاكسسوارات",
+              2
+            ],
+            [
+              "Shanghai Tiancen Machinery Manufacture Co Ltd",
+              2
+            ],
+            [
+              "شركة مرسيليا للاستثمارات العقارية - فرع اربد",
+              1
+            ],
+            [
+              "max speciality films limited - Toppan",
+              1
+            ],
+            [
+              "Oskar General Trading LLC",
+              1
+            ],
+            [
+              "Grapheast-Dubai",
+              1
+            ],
+            [
+              "Falcon Coast Cargo & Clearence",
+              1
+            ]
+          ],
+          "row_count": 10
+        }
+      ],
+      "citation_count": 1,
+      "citation_types": [
+        "query_result"
+      ],
+      "elapsed_s": 6.06,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "TN-01",
+      "category": "top_n_report",
+      "question": "What are the top 5 best-selling items?",
+      "run_as": "administrator",
+      "response": "Here are the top 5 selling items by quantity from 2025-04-14 to 2026-04-14:",
+      "citations": [
+        {
+          "type": "query_result",
+          "template": "top_selling_items",
+          "columns": [
+            "Item Code",
+            "Item Name",
+            "Total Qty Sold",
+            "Total Revenue"
+          ],
+          "rows": [
+            [
+              "PER CLICK",
+              "اجزاء ولوازم الات واجهزة الطباعة المستخدمة للطباعة/ قطع غيار القيمة بالدينار",
+              574328.0,
+              1722.984
+            ],
+            [
+              "PER CLICK",
+              "C389P700123 Black & White MP 5055",
+              9712.0,
+              58.272
+            ],
+            [
+              "PER CLICK",
+              "4425R310315 B&W",
+              6394.0,
+              108.698
+            ],
+            [
+              "PER CLICK",
+              "4425R310175 B&W",
+              5074.0,
+              71.036
+            ],
+            [
+              "PER CLICK",
+              "4422R410002 B&W",
+              4281.0,
+              94.182
+            ]
+          ],
+          "row_count": 5
+        }
+      ],
+      "citation_count": 1,
+      "citation_types": [
+        "query_result"
+      ],
+      "elapsed_s": 9.07,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "TN-02",
+      "category": "top_n_report",
+      "question": "Show me the top 10 items ranked by revenue this year.",
+      "run_as": "administrator",
+      "response": "Here are the top 10 selling items by revenue from 2026-01-01 to 2026-04-14:",
+      "citations": [
+        {
+          "type": "query_result",
+          "template": "top_selling_items",
+          "columns": [
+            "Item Code",
+            "Item Name",
+            "Total Qty Sold",
+            "Total Revenue"
+          ],
+          "rows": [
+            [
+              "MFYN4AF/A",
+              "iPhone 17 Pro Max 256GB Cosmic Orange",
+              340.0,
+              401340.281
+            ],
+            [
+              "MFYM4AF/A",
+              "iPhone 17 Pro Max 256GB Silver",
+              257.0,
+              302534.05
+            ],
+            [
+              "MFYP4AF/A",
+              "iPhone 17 Pro Max 256GB Deep Blue",
+              245.0,
+              289891.0
+            ],
+            [
+              "Quality Rebate",
+              "Quality ABM Rebate",
+              11.0,
+              84010.45
+            ],
+            [
+              "MFYQ4AF/A",
+              "iPhone 17 Pro Max 512GB Silver",
+              53.0,
+              73337.0
+            ],
+            [
+              "MG8J4AF/A",
+              "iPhone 17 Pro 256GB Deep Blue",
+              66.0,
+              71785.0
+            ],
+            [
+              "MFYT4AF/A",
+              "iPhone 17 Pro Max 512GB Cosmic Orange",
+              50.0,
+              69437.0
+            ],
+            [
+              "BDF Rebate",
+              "BDF Rebate",
+              1.0,
+              68160.0
+            ],
+            [
+              "MG6M4AF/A",
+              "iPhone 17 256GB Lavender",
+              75.0,
+              59561.0
+            ],
+            [
+              "MFYU4AF/A",
+              "iPhone 17 Pro Max 512GB Deep Blue",
+              38.0,
+              52445.05
+            ]
+          ],
+          "row_count": 10
+        }
+      ],
+      "citation_count": 1,
+      "citation_types": [
+        "query_result"
+      ],
+      "elapsed_s": 6.06,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "TN-03",
+      "category": "top_n_report",
+      "question": "What are the top 3 item pairs most frequently sold together?",
+      "run_as": "administrator",
+      "response": "Here are the top 3 item pairs most frequently sold together from 2025-04-14 to 2026-04-14:",
+      "citations": [
+        {
+          "type": "query_result",
+          "template": "best_selling_pairs",
+          "columns": [
+            "Item A",
+            "Item A Name",
+            "Item B",
+            "Item B Name",
+            "Times Sold Together"
+          ],
+          "rows": [
+            [
+              "194644226169",
+              "A2699L21 Anker Charger 20W 1C White",
+              "ISYSTEM CARE +",
+              "iSystem Care +",
+              196
+            ],
+            [
+              "6956896507182",
+              "KUZOOM Camera Lens Glass 3Pcs",
+              "ISYSTEM CARE +",
+              "iSystem Care +",
+              166
+            ],
+            [
+              "194644226152",
+              "A2699L11 Anker Charger 20W 1C Black",
+              "ISYSTEM CARE +",
+              "iSystem Care +",
+              150
+            ]
+          ],
+          "row_count": 3
+        }
+      ],
+      "citation_count": 1,
+      "citation_types": [
+        "query_result"
+      ],
+      "elapsed_s": 6.06,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "TN-04",
+      "category": "top_n_report",
+      "question": "Which items are low or out of stock based on recent sales activity?",
+      "run_as": "administrator",
+      "response": "Here are the top 10 items sold in the last 6 month(s) that are now low or out of stock (sorted by shortfall):",
+      "citations": [
+        {
+          "type": "query_result",
+          "template": "low_stock_recent_sales",
+          "columns": [
+            "Item Code",
+            "Item Name",
+            "Qty Sold (Period)",
+            "Current Stock",
+            "Shortfall"
+          ],
+          "rows": [
+            [
+              "PER CLICK",
+              "اجزاء ولوازم الات واجهزة الطباعة المستخدمة للطباعة/ قطع غيار القيمة بالدينار",
+              614781.0,
+              0.0,
+              614781.0
+            ],
+            [
+              "BLUEP1055",
+              "Blue PLATES CTP-SL 790 x 1030 X0.30MM",
+              4000.0,
+              0.0,
+              4000.0
+            ],
+            [
+              "MFYM4AF/A",
+              "iPhone 17 Pro Max 256GB Silver",
+              2313.0,
+              1536.0,
+              777.0
+            ],
+            [
+              "9904907034230",
+              " Levelo CurveFit 3D DLC HD Screen Protector For iPhone 17 - Clear",
+              600.0,
+              0.0,
+              600.0
+            ],
+            [
+              "9904907057246",
+              " Levelo Clara MagSafe TPU+PC Case For iPhone 17 - Transparent",
+              600.0,
+              0.0,
+              600.0
+            ],
+            [
+              "6956896506123",
+              "KUZOOM - HD Glass - Clear HD1",
+              1134.0,
+              552.0,
+              582.0
+            ],
+            [
+              "MFYT4AF/A",
+              "iPhone 17 Pro Max 512GB Cosmic Orange",
+              450.0,
+              0.0,
+              450.0
+            ],
+            [
+              "MG8J4AF/A",
+              "iPhone 17 Pro 256GB Deep Blue",
+              594.0,
+              144.0,
+              450.0
+            ],
+            [
+              "MD4A4QA/A",
+              "11-inch iPad Wi-Fi 128GB - Blue",
+              873.0,
+              444.0,
+              429.0
+            ],
+            [
+              "MFYQ4AF/A",
+              "iPhone 17 Pro Max 512GB Silver",
+              424.0,
+              0.0,
+              424.0
+            ]
+          ],
+          "row_count": 10
+        }
+      ],
+      "citation_count": 1,
+      "citation_types": [
+        "query_result"
+      ],
+      "elapsed_s": 6.06,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "TN-05",
+      "category": "top_n_report",
+      "question": "Show me the top 10 missing items from the last 6 months of sales.",
+      "run_as": "administrator",
+      "response": "Here are the top 10 items sold in the last 6 month(s) that are now low or out of stock (sorted by shortfall):",
+      "citations": [
+        {
+          "type": "query_result",
+          "template": "low_stock_recent_sales",
+          "columns": [
+            "Item Code",
+            "Item Name",
+            "Qty Sold (Period)",
+            "Current Stock",
+            "Shortfall"
+          ],
+          "rows": [
+            [
+              "PER CLICK",
+              "اجزاء ولوازم الات واجهزة الطباعة المستخدمة للطباعة/ قطع غيار القيمة بالدينار",
+              614781.0,
+              0.0,
+              614781.0
+            ],
+            [
+              "BLUEP1055",
+              "Blue PLATES CTP-SL 790 x 1030 X0.30MM",
+              4000.0,
+              0.0,
+              4000.0
+            ],
+            [
+              "MFYM4AF/A",
+              "iPhone 17 Pro Max 256GB Silver",
+              2313.0,
+              1536.0,
+              777.0
+            ],
+            [
+              "9904907034230",
+              " Levelo CurveFit 3D DLC HD Screen Protector For iPhone 17 - Clear",
+              600.0,
+              0.0,
+              600.0
+            ],
+            [
+              "9904907057246",
+              " Levelo Clara MagSafe TPU+PC Case For iPhone 17 - Transparent",
+              600.0,
+              0.0,
+              600.0
+            ],
+            [
+              "6956896506123",
+              "KUZOOM - HD Glass - Clear HD1",
+              1134.0,
+              552.0,
+              582.0
+            ],
+            [
+              "MG8J4AF/A",
+              "iPhone 17 Pro 256GB Deep Blue",
+              594.0,
+              144.0,
+              450.0
+            ],
+            [
+              "MFYT4AF/A",
+              "iPhone 17 Pro Max 512GB Cosmic Orange",
+              450.0,
+              0.0,
+              450.0
+            ],
+            [
+              "MD4A4QA/A",
+              "11-inch iPad Wi-Fi 128GB - Blue",
+              873.0,
+              444.0,
+              429.0
+            ],
+            [
+              "MFYQ4AF/A",
+              "iPhone 17 Pro Max 512GB Silver",
+              424.0,
+              0.0,
+              424.0
+            ]
+          ],
+          "row_count": 10
+        }
+      ],
+      "citation_count": 1,
+      "citation_types": [
+        "query_result"
+      ],
+      "elapsed_s": 9.07,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "CD-01",
+      "category": "cross_doctype",
+      "question": "What are the top 2 items sold together in the same sales invoice?",
+      "run_as": "administrator",
+      "response": "Here are the top 2 item pairs most frequently sold together from 2025-04-14 to 2026-04-14:",
+      "citations": [
+        {
+          "type": "query_result",
+          "template": "best_selling_pairs",
+          "columns": [
+            "Item A",
+            "Item A Name",
+            "Item B",
+            "Item B Name",
+            "Times Sold Together"
+          ],
+          "rows": [
+            [
+              "194644226169",
+              "A2699L21 Anker Charger 20W 1C White",
+              "ISYSTEM CARE +",
+              "iSystem Care +",
+              196
+            ],
+            [
+              "6956896507182",
+              "KUZOOM Camera Lens Glass 3Pcs",
+              "ISYSTEM CARE +",
+              "iSystem Care +",
+              166
+            ]
+          ],
+          "row_count": 2
+        }
+      ],
+      "citation_count": 1,
+      "citation_types": [
+        "query_result"
+      ],
+      "elapsed_s": 9.06,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "CD-02",
+      "category": "cross_doctype",
+      "question": "Which item pairs are most frequently purchased together?",
+      "run_as": "administrator",
+      "response": "",
+      "citations": [],
+      "citation_count": 0,
+      "citation_types": [],
+      "elapsed_s": 6.06,
+      "status": "Completed",
+      "pass": false,
+      "failure_reason": "expected query_result citation (template='best_selling_pairs'), none found; expected_citation_type 'query_result' not found (actual: [])"
+    },
+    {
+      "id": "CD-03",
+      "category": "cross_doctype",
+      "question": "Which items appear on both sales invoices and purchase invoices this year?",
+      "run_as": "administrator",
+      "response": "I can only search for items within Sales Invoices or Purchase Invoices separately, not compare them to find common items across both document types.",
+      "citations": [],
+      "citation_count": 0,
+      "citation_types": [],
+      "elapsed_s": 12.08,
+      "status": "Completed",
+      "pass": false,
+      "failure_reason": "decline_expected=true but no decline/clarification keyword found"
+    },
+    {
+      "id": "CD-04",
+      "category": "cross_doctype",
+      "question": "What is the average order value per customer for sales invoices that also have a matching purchase order?",
+      "run_as": "administrator",
+      "response": "I cannot fulfill this request. The available tools do not support querying for sales invoices that have a matching purchase order. I can provide the average order value per customer for all sales invoices, or for sales invoices filtered by a specific field, but not with a condition that links to another document type like a purchase order.",
+      "citations": [],
+      "citation_count": 0,
+      "citation_types": [],
+      "elapsed_s": 36.23,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "CD-05",
+      "category": "cross_doctype",
+      "question": "Show me customers who placed sales orders but have no corresponding purchase orders in 2026.",
+      "run_as": "administrator",
+      "response": "I cannot fulfill this request. The available tools do not support querying for customers who placed sales orders but have no corresponding purchase orders. I can only query sales orders and purchase orders independently, not compare them in this way.",
+      "citations": [],
+      "citation_count": 0,
+      "citation_types": [],
+      "elapsed_s": 12.08,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "ST-01",
+      "category": "stock_query",
+      "question": "What are the top 10 missing items from the last 6 months of sales?",
+      "run_as": "administrator",
+      "response": "",
+      "citations": [],
+      "citation_count": 0,
+      "citation_types": [],
+      "elapsed_s": 6.06,
+      "status": "Completed",
+      "pass": false,
+      "failure_reason": "expected query_result citation (template='low_stock_recent_sales'), none found; expected_citation_type 'query_result' not found (actual: [])"
+    },
+    {
+      "id": "ST-02",
+      "category": "stock_query",
+      "question": "Which items are low on stock based on recent sales velocity?",
+      "run_as": "administrator",
+      "response": "Here are the top 10 items sold in the last 6 month(s) that are now low or out of stock (sorted by shortfall):",
+      "citations": [
+        {
+          "type": "query_result",
+          "template": "low_stock_recent_sales",
+          "columns": [
+            "Item Code",
+            "Item Name",
+            "Qty Sold (Period)",
+            "Current Stock",
+            "Shortfall"
+          ],
+          "rows": [
+            [
+              "PER CLICK",
+              "اجزاء ولوازم الات واجهزة الطباعة المستخدمة للطباعة/ قطع غيار القيمة بالدينار",
+              614781.0,
+              0.0,
+              614781.0
+            ],
+            [
+              "BLUEP1055",
+              "Blue PLATES CTP-SL 790 x 1030 X0.30MM",
+              4000.0,
+              0.0,
+              4000.0
+            ],
+            [
+              "MFYM4AF/A",
+              "iPhone 17 Pro Max 256GB Silver",
+              2313.0,
+              1536.0,
+              777.0
+            ],
+            [
+              "9904907034230",
+              " Levelo CurveFit 3D DLC HD Screen Protector For iPhone 17 - Clear",
+              600.0,
+              0.0,
+              600.0
+            ],
+            [
+              "9904907057246",
+              " Levelo Clara MagSafe TPU+PC Case For iPhone 17 - Transparent",
+              600.0,
+              0.0,
+              600.0
+            ],
+            [
+              "6956896506123",
+              "KUZOOM - HD Glass - Clear HD1",
+              1134.0,
+              552.0,
+              582.0
+            ],
+            [
+              "MFYT4AF/A",
+              "iPhone 17 Pro Max 512GB Cosmic Orange",
+              450.0,
+              0.0,
+              450.0
+            ],
+            [
+              "MG8J4AF/A",
+              "iPhone 17 Pro 256GB Deep Blue",
+              594.0,
+              144.0,
+              450.0
+            ],
+            [
+              "MD4A4QA/A",
+              "11-inch iPad Wi-Fi 128GB - Blue",
+              873.0,
+              444.0,
+              429.0
+            ],
+            [
+              "MFYQ4AF/A",
+              "iPhone 17 Pro Max 512GB Silver",
+              424.0,
+              0.0,
+              424.0
+            ]
+          ],
+          "row_count": 10
+        }
+      ],
+      "citation_count": 1,
+      "citation_types": [
+        "query_result"
+      ],
+      "elapsed_s": 9.07,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "ST-03",
+      "category": "stock_query",
+      "question": "How many stock entries were created this month?",
+      "run_as": "administrator",
+      "response": "",
+      "citations": [],
+      "citation_count": 0,
+      "citation_types": [],
+      "elapsed_s": 6.06,
+      "status": "Completed",
+      "pass": false,
+      "failure_reason": "expected query_result citation (template='aggregate_doctype'), none found; expected_citation_type 'query_result' not found (actual: [])"
+    },
+    {
+      "id": "ST-04",
+      "category": "stock_query",
+      "question": "What stock entries were created in the last 7 days?",
+      "run_as": "administrator",
+      "response": "The COUNT(*) for Stock Entry is 0. (Filters: from 2026-04-08, to 2026-04-14)",
+      "citations": [
+        {
+          "type": "query_result",
+          "template": "aggregate_doctype",
+          "columns": [
+            "COUNT(*)"
+          ],
+          "rows": [
+            [
+              0
+            ]
+          ],
+          "row_count": 1
+        }
+      ],
+      "citation_count": 1,
+      "citation_types": [
+        "query_result"
+      ],
+      "elapsed_s": 9.07,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "ST-05",
+      "category": "stock_query",
+      "question": "How many Material Transfer stock entries were created this year?",
+      "run_as": "administrator",
+      "response": "The COUNT(*) for Stock Entry is 1235. (Filters: from 2026-01-01, to 2026-12-31)",
+      "citations": [
+        {
+          "type": "query_result",
+          "template": "aggregate_doctype",
+          "columns": [
+            "COUNT(*)"
+          ],
+          "rows": [
+            [
+              1235
+            ]
+          ],
+          "row_count": 1
+        }
+      ],
+      "citation_count": 1,
+      "citation_types": [
+        "query_result"
+      ],
+      "elapsed_s": 12.14,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "PM-01",
+      "category": "permissions",
+      "question": "What is the total amount on sales invoice SINV-IR-00657?",
+      "run_as": "rag_user",
+      "response": "You do not have permission to view this Sales Invoice record. Please contact your administrator if you need access.",
+      "citations": [],
+      "citation_count": 0,
+      "citation_types": [],
+      "elapsed_s": 6.06,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "PM-02",
+      "category": "permissions",
+      "question": "Show me the contact details and credit limit for customer Bothaina.",
+      "run_as": "rag_user",
+      "response": "You do not have permission to view this Customer record. Please contact your administrator if you need access.",
+      "citations": [],
+      "citation_count": 0,
+      "citation_types": [],
+      "elapsed_s": 6.07,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "PM-03",
+      "category": "permissions",
+      "question": "What items are on purchase order PUR-ORD-2026-00077 and what are their rates?",
+      "run_as": "rag_user",
+      "response": "You do not have permission to view this Purchase Order record. Please contact your administrator if you need access.",
+      "citations": [],
+      "citation_count": 0,
+      "citation_types": [],
+      "elapsed_s": 9.07,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "PM-04",
+      "category": "permissions",
+      "question": "What are the top 5 best-selling items?",
+      "run_as": "rag_user",
+      "response": "You do not have permission to access Sales Invoice data. Please contact your administrator if you need access.",
+      "citations": [],
+      "citation_count": 0,
+      "citation_types": [],
+      "elapsed_s": 12.08,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "PM-05",
+      "category": "permissions",
+      "question": "How many purchase invoices were submitted last month?",
+      "run_as": "rag_user",
+      "response": "You do not have permission to access Purchase Invoice data. Please contact your administrator if you need access.",
+      "citations": [],
+      "citation_count": 0,
+      "citation_types": [],
+      "elapsed_s": 6.06,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "OS-01",
+      "category": "out_of_scope",
+      "question": "What is the current exchange rate between USD and EUR?",
+      "run_as": "administrator",
+      "response": "I am sorry, I cannot provide real-time exchange rates as my capabilities are limited to the ERP data you provide and the functions I have been given. I do not have access to external financial data.",
+      "citations": [],
+      "citation_count": 0,
+      "citation_types": [],
+      "elapsed_s": 9.07,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "OS-02",
+      "category": "out_of_scope",
+      "question": "What is the weather forecast for Dubai tomorrow?",
+      "run_as": "administrator",
+      "response": "I am sorry, I cannot provide weather forecasts. My capabilities are limited to accessing and processing information from the company's ERP data.",
+      "citations": [],
+      "citation_count": 0,
+      "citation_types": [],
+      "elapsed_s": 6.06,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "OS-03",
+      "category": "out_of_scope",
+      "question": "Who won the last FIFA World Cup?",
+      "run_as": "administrator",
+      "response": "I am sorry, but I cannot answer questions about the FIFA World Cup as my knowledge is limited to the company's ERP data. I do not have access to external information or real-world events.",
+      "citations": [],
+      "citation_count": 0,
+      "citation_types": [],
+      "elapsed_s": 6.06,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "OS-04",
+      "category": "out_of_scope",
+      "question": "What is the capital of France?",
+      "run_as": "administrator",
+      "response": "I am sorry, but I cannot answer questions about the capital of France. My knowledge is limited to the company's ERP data and I do not have access to general factual information.",
+      "citations": [],
+      "citation_count": 0,
+      "citation_types": [],
+      "elapsed_s": 6.06,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "OS-05",
+      "category": "out_of_scope",
+      "question": "Write me a Python script to parse CSV files.",
+      "run_as": "administrator",
+      "response": "I am sorry, but I cannot write a Python script to parse CSV files. My capabilities are limited to accessing and processing information from the company's ERP data using the available tools. I cannot generate code or perform general programming tasks.",
+      "citations": [],
+      "citation_count": 0,
+      "citation_types": [],
+      "elapsed_s": 6.06,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "VC-01",
+      "category": "vague_capability",
+      "question": "What can you help me with?",
+      "run_as": "administrator",
+      "response": "I can help you with a variety of tasks related to your ERP data. I can:\n\n*   **Look up specific documents:** If you give me a document type and ID (e.g., \"Sales Invoice SINV-IR-00657\", \"Customer C-00042\", \"Item ITEM-001\"), I can retrieve its full details.\n*   **Run reports:** I can generate reports on:\n    *   AI Suppliers by Country\n    *   Customers by Territory\n    *   Active Items\n    *   Recent Sales Invoices\n*   **Analyze sales data:** I can tell you about:\n    *   **Top-selling items:** Ranked by quantity or revenue for a specified period.\n    *   **Best-selling item pairs:** Items frequently purchased together.\n*   **Identify low stock items:** I can list items that were sold recently but are now low or out of stock.\n*   **Aggregate data:** I can perform flexible queries to count, ",
+      "citations": [],
+      "citation_count": 0,
+      "citation_types": [],
+      "elapsed_s": 9.07,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "VC-02",
+      "category": "vague_capability",
+      "question": "Help me.",
+      "run_as": "administrator",
+      "response": "I can help you with a variety of tasks related to your ERP data. Based on the context you've provided, I can, for example:\n\n*   Look up details of specific Sales Orders or Invoices, like \"Sales Order SAL-ORD-2026-00076\" or \"Sales Invoice ACC-SINV-2026-00565\".\n*   Provide information about Stock Entries, such as \"Stock Entry MAT-STE-2026-01037\".\n*   Tell you about Purchase Orders or Purchase Receipts, like \"Purchase Order PUR-ORD-2026-00031\" or \"Purchase Receipt MAT-PRE-2026-00034\".\n*   Give you details on customers or suppliers, for example, \"Customer YARA ABUSIR\" or \"Supplier Arab Business Machine\".\n*   Look up information about items, like \"Item HOR01234\" or \"Item Price 01t4rm9n8f\".\n\nWhat specifically are you looking for help with?",
+      "citations": [],
+      "citation_count": 0,
+      "citation_types": [],
+      "elapsed_s": 9.07,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "VC-03",
+      "category": "vague_capability",
+      "question": "compact",
+      "run_as": "administrator",
+      "response": "I'm sorry, I don't understand what you mean by \"compact\". Could you please elaborate on what you're trying to achieve? Are you looking for a summary of the provided documents, or something else?",
+      "citations": [],
+      "citation_count": 0,
+      "citation_types": [],
+      "elapsed_s": 9.07,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "VC-04",
+      "category": "vague_capability",
+      "question": "What types of documents and data do you have access to?",
+      "run_as": "administrator",
+      "response": "I have access to the following types of documents and data:\n\n*   **Sales Invoices:** Detailed records of sales, including customer, grand total, status, due date, items, and outstanding amounts. (e.g., SINV-AB-01323, ACC-SINV-2026-00549)\n*   **Stock Entries:** Records of material movements, including type (e.g., Material Receipt), posting date, status, and items. (e.g., MAT-STE-2026-01154, MAT-STE-2026-00622)\n*   **Purchase Orders:** Records of orders placed with suppliers, including date, supplier, grand total, status, and items. (e.g., PUR-ORD-2026-00017, PUR-ORD-2026-00009)\n*   **Sales Orders:** Records of customer orders, including date, customer, grand total, status, and items. (e.g., SAL-ORD-2026-00028, SAL-ORD-2026-00029)\n*   **Items:** Details about products, including code, item g",
+      "citations": [],
+      "citation_count": 0,
+      "citation_types": [],
+      "elapsed_s": 9.06,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "VC-05",
+      "category": "vague_capability",
+      "question": "Can you generate reports or export data to Excel?",
+      "run_as": "administrator",
+      "response": "I can generate reports and provide data, but I cannot directly export data to Excel. You can copy the data I provide and paste it into Excel.\n\nWhat kind of report or data are you interested in? For example, I can provide:\n\n*   Supplier lists\n*   Customer lists by territory\n*   Active item lists\n*   Recent sales invoices\n*   Top-selling items\n*   Items frequently purchased together\n*   Low-stock items\n*   Aggregated data (counts, sums, averages, etc.) for various document types.",
+      "citations": [],
+      "citation_count": 0,
+      "citation_types": [],
+      "elapsed_s": 12.07,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "CH-01",
+      "category": "citation_hygiene",
+      "question": "What can you do?",
+      "run_as": "administrator",
+      "response": "I can provide information from the company's ERP data. I can:\n\n*   **Look up details of specific documents** like invoices, orders, customers, or items if you provide the document type and name/ID (e.g., \"What is SINV-IR-00657?\", \"Show me customer C-00042\").\n*   **Run various reports and queries**, such as:\n    *   Top-selling items\n    *   Items frequently purchased together\n    *   Low-stock items with recent sales\n    *   Supplier lists\n    *   Customer by territory\n    *   Item active list\n    *   Recent sales invoices\n    *   Aggregate data (COUNT, SUM, AVG, MIN, MAX) on any document type with various filters and groupings (e.g., \"How many sales orders were completed last month?\", \"Total grand total of purchase invoices by supplier\").\n\nWhat kind of information are you looking for toda",
+      "citations": [],
+      "citation_count": 0,
+      "citation_types": [],
+      "elapsed_s": 12.08,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "CH-02",
+      "category": "citation_hygiene",
+      "question": "What are the top 5 best-selling items by quantity?",
+      "run_as": "administrator",
+      "response": "Here are the top 5 selling items by quantity from 2025-04-14 to 2026-04-14:",
+      "citations": [
+        {
+          "type": "query_result",
+          "template": "top_selling_items",
+          "columns": [
+            "Item Code",
+            "Item Name",
+            "Total Qty Sold",
+            "Total Revenue"
+          ],
+          "rows": [
+            [
+              "PER CLICK",
+              "اجزاء ولوازم الات واجهزة الطباعة المستخدمة للطباعة/ قطع غيار القيمة بالدينار",
+              574328.0,
+              1722.984
+            ],
+            [
+              "PER CLICK",
+              "C389P700123 Black & White MP 5055",
+              9712.0,
+              58.272
+            ],
+            [
+              "PER CLICK",
+              "4425R310315 B&W",
+              6394.0,
+              108.698
+            ],
+            [
+              "PER CLICK",
+              "4425R310175 B&W",
+              5074.0,
+              71.036
+            ],
+            [
+              "PER CLICK",
+              "4422R410002 B&W",
+              4281.0,
+              94.182
+            ]
+          ],
+          "row_count": 5
+        }
+      ],
+      "citation_count": 1,
+      "citation_types": [
+        "query_result"
+      ],
+      "elapsed_s": 9.15,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "CH-03",
+      "category": "citation_hygiene",
+      "question": "How many sales orders have status Completed?",
+      "run_as": "administrator",
+      "response": "The COUNT(*) for Sales Order is 80. (Filters: status = 'Completed')",
+      "citations": [
+        {
+          "type": "query_result",
+          "template": "aggregate_doctype",
+          "columns": [
+            "COUNT(*)"
+          ],
+          "rows": [
+            [
+              80
+            ]
+          ],
+          "row_count": 1
+        }
+      ],
+      "citation_count": 1,
+      "citation_types": [
+        "query_result"
+      ],
+      "elapsed_s": 6.05,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "CH-04",
+      "category": "citation_hygiene",
+      "question": "What is SINV-IR-00657?",
+      "run_as": "administrator",
+      "response": "Sales Invoice SINV-IR-00657 issued on 2026-03-29 to Bothaina. Grand total: 30.0 JOD. Status: Paid. Due: 2026-03-29. 2 line item(s) — see the details card below.",
+      "citations": [
+        {
+          "type": "record_detail",
+          "doctype": "Sales Invoice",
+          "name": "SINV-IR-00657",
+          "fields": {
+            "customer": "Bothaina",
+            "customer_name": "Bothaina",
+            "posting_date": "2026-03-29",
+            "due_date": "2026-03-29",
+            "status": "Paid",
+            "grand_total": 30.0,
+            "currency": "JOD",
+            "company": "Modern System",
+            "items": [
+              {
+                "item_code": "6290361552506",
+                "item_name": "Blupebble Graphene Tempered Glass 2.5DPrivacy Applicator iPhone 16 Plus BPROCKIP16PLUS6.7AP-PRV",
+                "qty": 1.0,
+                "rate": 12.931,
+                "amount": 12.931
+              },
+              {
+                "item_code": "6954661870974",
+                "item_name": "JCPal Preserver Camera Lens Protector for iPhone 16/16 Plus (Transparent)",
+                "qty": 1.0,
+                "rate": 12.931,
+                "amount": 12.931
+              }
+            ]
+          }
+        }
+      ],
+      "citation_count": 1,
+      "citation_types": [
+        "record_detail"
+      ],
+      "elapsed_s": 18.1,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    },
+    {
+      "id": "CH-05",
+      "category": "citation_hygiene",
+      "question": "What is PUR-ORD-2026-00077?",
+      "run_as": "administrator",
+      "response": "Purchase Order PUR-ORD-2026-00077 dated 2026-03-26 from شركة الاشارة الرائدة لتجارة الاكسسوارات. Grand total: 19963.02 JOD. Status: To Bill. 28 line item(s) — see the details card below.",
+      "citations": [
+        {
+          "type": "record_detail",
+          "doctype": "Purchase Order",
+          "name": "PUR-ORD-2026-00077",
+          "fields": {
+            "supplier": "شركة الاشارة الرائدة لتجارة الاكسسوارات",
+            "supplier_name": "شركة الاشارة الرائدة لتجارة الاكسسوارات",
+            "transaction_date": "2026-03-26",
+            "schedule_date": "2026-03-26",
+            "status": "To Bill",
+            "grand_total": 19963.02,
+            "currency": "JOD",
+            "company": "Modern System",
+            "items": [
+              {
+                "item_code": "745883904495",
+                "item_name": "BELKIN 20W ADAPTER 2PIN",
+                "qty": 240.0,
+                "rate": 4.5,
+                "amount": 1080.0
+              },
+              {
+                "item_code": "745883910151",
+                "item_name": "BELKIN 20W WITH C TO C CABLE",
+                "qty": 30.0,
+                "rate": 7.5,
+                "amount": 225.0
+              },
+              {
+                "item_code": "194644139964",
+                "item_name": "Soundcore SpaceOne Headphone ANC Blue",
+                "qty": 5.0,
+                "rate": 50.0,
+                "amount": 250.0
+              },
+              {
+                "item_code": "194644139827",
+                "item_name": "Soundcore SpaceOne Headphone ANC Black",
+                "qty": 5.0,
+                "rate": 50.0,
+                "amount": 250.0
+              },
+              {
+                "item_code": "194644200572",
+                "item_name": "Anker SOLIX C200 DC Portable Power Station",
+                "qty": 4.0,
+                "rate": 50.0,
+                "amount": 200.0
+              },
+              {
+                "item_code": "194644103590",
+                "item_name": "ANKER USB-C TO LIGHTNING CABLE BIO-BASED 6FT WHITE",
+                "qty": 30.0,
+                "rate": 105.0,
+                "amount": 3150.0
+              },
+              {
+                "item_code": "194644108557",
+                "item_name": "Anker 542 USB-C to Lightning Cable (Bio-Based 6ft)- Black",
+                "qty": 30.0,
+                "rate": 8.0,
+                "amount": 240.0
+              },
+              {
+                "item_code": "194644114510",
+                "item_name": "Anker 322 USB-C to Lightning Cable (3ft Braided) Black",
+                "qty": 30.0,
+                "rate": 8.0,
+                "amount": 240.0
+              },
+              {
+                "item_code": "194644226152",
+                "item_name": "A2699L11 Anker Charger 20W 1C Black",
+                "qty": 240.0,
+                "rate": 7.0,
+                "amount": 1680.0
+              },
+              {
+                "item_code": "194644213954",
+                "item_name": "Anker Charger 30W 1C Black",
+                "qty": 300.0,
+                "rate": 5.0,
+                "amount": 1500.0
+              },
+              {
+                "item_code": "194644114497",
+                "item_name": "Anker 322 USB-C to Lightning Cable (6ft Braided) Black",
+                "qty": 30.0,
+                "rate": 8.0,
+                "amount": 240.0
+              },
+              {
+                "item_code": "194644114480",
+                "item_name": "Anker Anker 322 USB-C to Lightning Cable [(Gft Braided) White",
+                "qty": 30.0,
+                "rate": 8.0,
+                "amount": 240.0
+              },
+              {
+                "item_code": "194644043612",
+                "item_name": "A3959H21 Soundcore R50i NC White",
+                "qty": 12.0,
+                "rate": 8.0,
+                "amount": 96.0
+              },
+              {
+                "item_code": "194644197421",
+                "item_name": "A3959H11 Soundcore R50i NC Black",
+                "qty": 12.0,
+                "rate": 16.0,
+                "amount": 192.0
+              },
+              {
+                "item_code": "194644043568",
+                "item_name": "ANKER R50I NC blue",
+                "qty": 12.0,
+                "rate": 16.0,
+                "amount": 192.0
+              },
+              {
+                "item_code": "194644041250",
+                "item_name": "ANKER R50I NC Green",
+                "qty": 12.0,
+                "rate": 16.0,
+                "amount": 192.0
+              },
+              {
+                "item_code": "194644041267",
+                "item_name": "A3959H51 Soundcore R50i NC Pink",
+                "qty": 12.0,
+                "rate": 16.0,
+                "amount": 192.0
+              },
+              {
+                "item_code": "194644209223",
+                "item_name": "A8060H12 Anker Zolo USB C to USB C Cable, (240W)(1.8m/6ft)Black",
+                "qty": 30.0,
+                "rate": 16.0,
+                "amount": 480.0
+              },
+              {
+                "item_code": "194644209230",
+                "item_name": "A8060H22 Anker Zolo USB C to USB C Cable (240W 1.8M/6ft)White",
+                "qty": 30.0,
+                "rate": 4.0,
+                "amount": 120.0
+              },
+              {
+                "item_code": "194644099053",
+                "item_name": "ANKER 737 CHARGER GANPRIME 120W BLACK 2 PIN BK",
+                "qty": 13.0,
+                "rate": 4.0,
+                "amount": 52.0
+              },
+              {
+                "item_code": "194644204488",
+                "item_name": "ANKER 523 POWER BANK 10000 30W",
+                "qty": 25.0,
+                "rate": 35.0,
+                "amount": 875.0
+              },
+              {
+                "item_code": "194644247287",
+                "item_name": "ANKER SOUNDCORE R60INC BLACK",
+                "qty": 12.0,
+                "rate": 23.0,
+                "amount": 276.0
+              },
+              {
+                "item_code": "194644247393",
+                "item_name": "ANKER SOUNDCORE R60INC PINK",
+                "qty": 12.0,
+                "rate": 20.0,
+                "amount": 240.0
+              },
+              {
+                "item_code": "194644247249",
+                "item_name": "ANKER SOUNDCORE R60INC WHITE",
+                "qty": 12.0,
+                "rate": 20.0,
+                "amount": 240.0
+              },
+              {
+                "item_code": "7971665212530",
+                "item_name": "ROCKYMILE TAB Glass Transparent (iPad And Tablet) 10 INCH",
+                "qty": 220.0,
+                "rate": 20.0,
+                "amount": 4400.0
+              },
+              {
+                "item_code": "7971665212547",
+                "item_name": "ROCKYMILE TAB GlasTransparent (iPad And Tablet12 INCH",
+                "qty": 120.0,
+                "rate": 1.5,
+                "amount": 180.0
+              },
+              {
+                "item_code": "6956896505508",
+                "item_name": "KUZOOM IPHONE GLASS HD 10 IN ONE",
+                "qty": 50.0,
+                "rate": 2.5,
+                "amount": 125.0
+              },
+              {
+                "item_code": "6956896505683",
+                "item_name": "KUZOOM IPHONEGLASS PRIVCY 10 IN",
+                "qty": 50.0,
+                "rate": 1.25,
+                "amount": 62.5
+              }
+            ]
+          }
+        }
+      ],
+      "citation_count": 1,
+      "citation_types": [
+        "record_detail"
+      ],
+      "elapsed_s": 6.05,
+      "status": "Completed",
+      "pass": true,
+      "failure_reason": ""
+    }
+  ]
+}

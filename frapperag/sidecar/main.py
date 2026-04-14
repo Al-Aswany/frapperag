@@ -408,14 +408,29 @@ def chat(req: ChatRequest):
         tokens_used = getattr(response.usage_metadata, "total_token_count", 0)
 
     # Detect tool_call response — check before accessing response.text
-    if response.candidates and response.candidates[0].content.parts:
-        for part in response.candidates[0].content.parts:
-            if hasattr(part, "function_call") and part.function_call and part.function_call.name:
-                fc = part.function_call
-                return {
-                    "tool_call": {"name": fc.name, "args": dict(fc.args)},
-                    "tokens_used": tokens_used,
-                }
+    parts = (
+        response.candidates[0].content.parts
+        if response.candidates and response.candidates[0].content.parts
+        else []
+    )
+
+    for part in parts:
+        if hasattr(part, "function_call") and part.function_call and part.function_call.name:
+            fc = part.function_call
+            return {
+                "tool_call": {"name": fc.name, "args": dict(fc.args)},
+                "tokens_used": tokens_used,
+            }
+
+    # Empty-parts response (e.g. finish_reason=STOP with no content) — return
+    # empty text rather than letting response.text raise ValueError.
+    if not parts:
+        finish_reason = (
+            response.candidates[0].finish_reason
+            if response.candidates else "unknown"
+        )
+        log.warning("/chat: Gemini returned no content parts (finish_reason=%s)", finish_reason)
+        return {"text": "", "tokens_used": tokens_used}
 
     return {"text": response.text, "tokens_used": tokens_used}
 
