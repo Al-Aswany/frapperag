@@ -48,7 +48,7 @@ def build_messages(question: str, context_records: list, history: list) -> list:
 
     # Priming exchange: sets system persona (synthetic user/model opening turn)
     messages.append({"role": "user",  "parts": [_build_system_persona()]})
-    messages.append({"role": "model", "parts": ["Understood. I will answer based only on provided context."]})
+    messages.append({"role": "model", "parts": ["Understood. I will call the available tools to look up specific records or run data queries when needed, and use the provided context for background information. I will not answer from memory alone when a tool can retrieve the accurate data."]})
 
     # Conversation history (oldest-first, max 10 turns)
     for turn in history[-10:]:

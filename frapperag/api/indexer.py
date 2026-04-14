@@ -25,7 +25,7 @@ def get_job_status(job_id: str) -> dict:
             f"AI Indexing Job '{job_id}' not found.",
             frappe.DoesNotExistError,
         )
-    frappe.has_permission("AI Indexing Job", throw=True)
+    frappe.has_permission("AI Indexing Job", doc=job_id, ptype="read", throw=True)
     job = frappe.get_doc("AI Indexing Job", job_id)
     return {
         "job_id":            job.name,

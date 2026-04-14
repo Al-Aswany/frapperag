@@ -337,7 +337,7 @@ def upsert(req: UpsertRequest):
         raise HTTPException(status_code=500, detail=f"Upsert failed: {exc}")
 
 
-_CHAT_RATE_LIMIT_SLEEP = 60.0  # seconds — mirrors FR-015 retry pattern
+_CHAT_RATE_LIMIT_SLEEP = 15.0  # seconds — kept well below the 180s httpx timeout in sidecar_client
 
 
 @app.post("/chat")

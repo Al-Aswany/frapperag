@@ -462,7 +462,7 @@ def _load_aggregate_allowlists() -> dict:
     Returns an empty dict when settings are not accessible (fail-closed).
     """
     try:
-        settings = frappe.get_single("AI Assistant Settings")
+        settings = frappe.get_cached_doc("AI Assistant Settings")
     except Exception:
         return {}
 
@@ -693,10 +693,19 @@ QUERY_TEMPLATES: dict = {
         "description": (
             "Look up the full details of a specific document by its DocType and "
             "name/ID. Use this when the user asks about a specific invoice, order, "
-            "customer, item, or other named record (e.g. 'What is SINV-IR-00657?', "
+            "customer, supplier, item, or other named record — including questions "
+            "about a specific attribute of a named entity such as email address, "
+            "phone number, contact details, address, status, or total. "
+            "ALWAYS call this tool for named-entity attribute questions instead of "
+            "answering from context. "
+            "Examples: 'What is SINV-IR-00657?', "
             "'Show me customer C-00042', 'Tell me about item ITEM-001', "
             "'What is PUR-ORD-2026-00001?', 'Show me purchase order PUR-ORD-2024-00077', "
-            "'Look up delivery note DN-00123')."
+            "'Look up delivery note DN-00123', "
+            "'What is the email address of supplier X?', "
+            "'What is the phone number of customer Y?', "
+            "'What is the contact information for supplier Z?', "
+            "'What is the address of customer Rana Alotom?'."
         ),
         "parameters": {
             "doctype": {
@@ -887,6 +896,9 @@ QUERY_TEMPLATES: dict = {
                 "description": (
                     "An additional field to filter on (must be an admin-allowlisted "
                     "group-by field), e.g. 'supplier', 'customer'. "
+                    "For Stock Entry, the entry-type field is 'stock_entry_type' "
+                    "(not 'purpose') — use filter_field='stock_entry_type' with "
+                    "filter_value='Material Transfer', 'Material Receipt', etc. "
                     "Use with filter_value."
                 ),
                 "required": False,

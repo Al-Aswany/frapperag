@@ -20,7 +20,7 @@ class SidecarError(Exception):
     pass
 
 
-class SidecarUnavailableError(Exception):
+class SidecarUnavailableError(SidecarError):
     """Raised when the sidecar is unreachable after all retry attempts.
 
     Covers: connection refused, timeout, and HTTP 429/502/503 exhaustion.
@@ -28,7 +28,7 @@ class SidecarUnavailableError(Exception):
     pass
 
 
-class SidecarPermanentError(Exception):
+class SidecarPermanentError(SidecarError):
     """Raised when the sidecar returns a 4xx (client error) that should not be retried.
 
     `status_code` is set to the HTTP status code when available.
@@ -46,7 +46,7 @@ def _get_port() -> int:
     """
     import frappe
     try:
-        port = frappe.get_doc("AI Assistant Settings").sidecar_port
+        port = frappe.get_cached_doc("AI Assistant Settings").sidecar_port
         return int(port) if port else 8100
     except Exception:
         return 8100
@@ -223,7 +223,7 @@ def chat(
     Accepts an optional tools list (list of function-declaration dicts) passed through to the sidecar.
 
     Returns {"text": str, "tokens_used": int}.
-    Uses a 120s timeout to allow for the sidecar's internal 60s rate-limit retry.
+    Uses a 180s timeout to allow for the sidecar's internal 15s rate-limit retry plus a full Gemini round trip.
     Raises SidecarUnavailableError after 3 failed connection/timeout/transient attempts.
     Raises SidecarPermanentError on 4xx client errors.
     Raises SidecarError on other non-2xx responses.
@@ -234,7 +234,7 @@ def chat(
     payload = {"messages": messages, "api_key": api_key, "model": model}
     if tools:
         payload["tools"] = tools
-    response = _retry_call(httpx.post, url, json=payload, timeout=120.0)
+    response = _retry_call(httpx.post, url, json=payload, timeout=180.0)
     return response.json()
 
 

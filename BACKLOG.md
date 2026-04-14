@@ -14,3 +14,9 @@ Backlog
  
 Production needs nginx in front so socket.io actually works and users don't eat the 2s poll floor on every message.
 Keep the polling loop even after socket.io works — it's cheap insurance against dropped events from reconnects, worker restarts, and backgrounded tabs.
+
+## Notices from 2026-04-14 production-readiness fixes (not acted on)
+
+- `api/indexer.py:48` — `list_jobs` and `get_job_status` both call `frappe.has_permission("AI Indexing Job", throw=True)`. `list_jobs` still uses a DocType-level check (no `doc=` arg). The IDOR fix was scoped to `get_job_status` per the report; `list_jobs` may deserve the same treatment once `get_all` pagination is in use by external users.
+- `sidecar_client.py` — `_retry_call` sleeps between transient HTTP retries using `time.sleep` (1s, 2s). Under the new 180s timeout with a 15s sidecar sleep, worst-case is: 3 sidecar attempts × (15s sleep + Gemini RTT) + 3s retry back-off = still well under 180s. Budget appears safe but worth re-checking if Gemini RTT increases.
+- `query_executor.py:465` — `frappe.get_single` was being used (not `frappe.get_doc`). Both return a doc object for Single DocTypes; `get_cached_doc` is a valid replacement for both.
