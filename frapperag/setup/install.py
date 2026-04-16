@@ -183,12 +183,13 @@ def seed_all_settings() -> None:
             settings.append("allowed_roles", {"role": role})
             changed = True
 
-    # --- Allowed Reports ---
+    # --- Allowed Reports (skip reports that don't exist on this site) ---
     existing_reports = {row.report for row in (settings.allowed_reports or [])}
     for entry in _DEFAULT_REPORTS:
         if entry["report"] not in existing_reports:
-            settings.append("allowed_reports", entry)
-            changed = True
+            if frappe.db.exists("Report", entry["report"]):
+                settings.append("allowed_reports", entry)
+                changed = True
 
     # --- Aggregate Fields ---
     existing_agg = {
@@ -204,6 +205,7 @@ def seed_all_settings() -> None:
     if changed:
         settings.flags.ignore_validate = True
         settings.flags.ignore_mandatory = True
+        settings.flags.ignore_links = True
         settings.save(ignore_permissions=True)
         frappe.db.commit()
 
