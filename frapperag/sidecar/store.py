@@ -11,10 +11,10 @@ attempts before the bench path is configured.
 
 import pyarrow as pa
 
-EMBEDDING_DIM = 768  # multilingual-e5-base output dimensions
-TABLE_PREFIX = "v3_"
+EMBEDDING_DIM = 384  # multilingual-e5-small output dimensions
+TABLE_PREFIX = "v4_"
 
-# Schema mirrors lancedb_store.py (v1_) but uses v3_ prefix and
+# Schema mirrors lancedb_store.py (v1_) but uses v4_ prefix and
 # is accessed exclusively via the sidecar HTTP API.
 _SCHEMA = pa.schema([
     pa.field("id",            pa.string()),
@@ -42,7 +42,7 @@ def init_store(rag_dir: str) -> None:
 
 
 def _table_name(doctype: str) -> str:
-    """Compute the v3_ table name for a given DocType."""
+    """Compute the v4_ table name for a given DocType."""
     return TABLE_PREFIX + doctype.lower().replace(" ", "_")
 
 
@@ -52,14 +52,14 @@ def _record_id(doctype: str, name: str) -> str:
 
 
 def get_or_create_table(table_name: str):
-    """Open or create a LanceDB table with the standard v3_ schema."""
+    """Open or create a LanceDB table with the standard v4_ schema."""
     if _db is None:
         raise RuntimeError("store not initialised — call init_store() first")
     return _db.create_table(table_name, schema=_SCHEMA, exist_ok=True)
 
 
 def upsert_rows(table_name: str, rows: list[dict]) -> None:
-    """Upsert a list of row dicts into a v3_ LanceDB table.
+    """Upsert a list of row dicts into a v4_ LanceDB table.
 
     Uses merge_insert("id") so existing entries are updated in-place
     and new entries are inserted without rebuilding the table.
@@ -74,7 +74,7 @@ def upsert_rows(table_name: str, rows: list[dict]) -> None:
 
 
 def delete_row(table_name: str, record_id: str) -> bool:
-    """Delete a single row from a v3_ table by composite ID.
+    """Delete a single row from a v4_ table by composite ID.
 
     Returns True if the row existed and was deleted, False if it was not found.
     No-op (returns False) if the table does not exist.
@@ -95,7 +95,7 @@ def delete_row(table_name: str, record_id: str) -> bool:
 
 
 def drop_table(table_name: str) -> bool:
-    """Drop an entire v3_ LanceDB table.
+    """Drop an entire v4_ LanceDB table.
 
     Returns True if the table existed and was dropped, False if not found.
     Idempotent — no error if the table does not exist.
@@ -112,9 +112,9 @@ def drop_table(table_name: str) -> bool:
 def _search_one_table(
     table_name: str, query_vector: list, top_k: int, max_distance: float
 ) -> tuple[str, list, float]:
-    """Search a single v3_* table. Returns (table_name, rows, elapsed_seconds).
+    """Search a single v4_* table. Returns (table_name, rows, elapsed_seconds).
 
-    Called from a ThreadPoolExecutor worker inside search_all_v3_tables.
+    Called from a ThreadPoolExecutor worker inside search_all_v4_tables.
     """
     import time as _time
     t0 = _time.monotonic()
@@ -130,13 +130,13 @@ def _search_one_table(
     return table_name, rows, _time.monotonic() - t0
 
 
-def search_all_v3_tables(query_vector: list, top_k: int = 5, max_distance: float = 1.0) -> list:
-    """Search all v3_* tables with a pre-computed query vector.
+def search_all_v4_tables(query_vector: list, top_k: int = 5, max_distance: float = 1.0) -> list:
+    """Search all v4_* tables with a pre-computed query vector.
 
     Searches tables in parallel (ThreadPoolExecutor) when more than one table exists.
     Returns a list of dicts: {doctype, name, text, _distance}, sorted by distance.
     Tables that cannot be opened or searched are skipped silently.
-    Returns [] if no v3_* tables exist.
+    Returns [] if no v4_* tables exist.
     """
     import logging
     from concurrent.futures import ThreadPoolExecutor, as_completed

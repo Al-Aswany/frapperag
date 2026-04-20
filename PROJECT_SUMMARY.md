@@ -28,9 +28,9 @@ Frappe worker (queue=short/long)
         │  httpx (localhost only)
         ▼
 RAG Sidecar (FastAPI + uvicorn, port 8100)
-  /embed    — multilingual-e5-base (local, 768 dims, Arabic+English)
+  /embed    — multilingual-e5-small (local, 384 dims, Arabic+English)
   /upsert   — embed + write to LanceDB
-  /search   — embed query + search v3_* tables
+  /search   — embed query + search v4_* tables
   /chat     — Gemini 2.5 Flash (supports function calling / tool_call response)
   /record   — DELETE single vector entry
   /table    — DELETE entire table
@@ -55,8 +55,8 @@ Workers **never** import `lancedb` or `sentence_transformers` directly. Everythi
 | Concern | Choice |
 |---|---|
 | Framework | Frappe v15+, ERPNext v15+ |
-| Vector store | LanceDB (bench-level `rag/` dir, `v3_` prefix) |
-| Embedding model | `multilingual-e5-base` via sentence-transformers (local, ~280 MB, 768 dims, Arabic+English) |
+| Vector store | LanceDB (bench-level `rag/` dir, `v4_` prefix) |
+| Embedding model | `multilingual-e5-small` via sentence-transformers (local, ~470 MB, 384 dims, Arabic+English) |
 | Chat LLM | `gemini-2.5-flash` (paid tier, supports function calling) |
 | Frontend | Vanilla JS only |
 | Sidecar | FastAPI + uvicorn, `localhost:8100` |

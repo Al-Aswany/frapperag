@@ -121,7 +121,7 @@ def run_chat_job(message_id: str, session_id: str, user: str, question: str = ""
             f" → {len(whitelist_names)} reports, tools={'yes' if all_tools else 'no'}"
         )
 
-        # 1+2. Embed query + search all v3_* tables via sidecar (single HTTP call)
+        # 1+2. Embed query + search all v4_* tables via sidecar (single HTTP call)
         t0 = _time.monotonic()
         candidates = search_candidates(question)
         _log().info(

@@ -5,12 +5,12 @@ MAX_DISTANCE = 1.0   # cosine distance ceiling; results above this are irrelevan
 
 
 def search_candidates(text: str) -> list:
-    """Embed a query and search all v3_* LanceDB tables via the RAG sidecar.
+    """Embed a query and search all v4_* LanceDB tables via the RAG sidecar.
 
     Single HTTP call to POST /search — the sidecar handles embedding (with the
     correct "query: " prefix) and vector search internally.
     Returns list of dicts: {doctype, name, text, _distance}, sorted by distance.
-    Returns [] when no v3_* tables exist or the sidecar returns no matches.
+    Returns [] when no v4_* tables exist or the sidecar returns no matches.
 
     Raises SidecarError on connection failure or HTTP error.
     """

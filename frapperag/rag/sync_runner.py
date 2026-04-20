@@ -117,7 +117,7 @@ def run_sync_job(
 
 
 def run_purge_job(sync_log_id: str, doctype: str, user: str, **kwargs) -> None:
-    """Worker: drop the entire v3_ LanceDB table for a removed-from-whitelist DocType."""
+    """Worker: drop the entire v4_ LanceDB table for a removed-from-whitelist DocType."""
     frappe.set_user(user)
 
     frappe.db.set_value("Sync Event Log", sync_log_id, "outcome", "Running")

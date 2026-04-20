@@ -198,7 +198,7 @@ def run_indexing_job(indexing_job_id: str, doctype: str, user: str, **kwargs):
 
             try:
                 # Embed + upsert via sidecar — single HTTP call per record.
-                # The sidecar applies "passage: " prefix and writes to the v3_ table.
+                # The sidecar applies "passage: " prefix and writes to the v4_ table.
                 upsert_record(doctype, rec["name"], text)
                 job.processed_records += 1
 

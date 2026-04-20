@@ -171,10 +171,10 @@ def sync_startup() -> None:
     init_store(rag_dir)
     log.info("Startup: LanceDB connection ready")
 
-    log.info("Startup: loading multilingual-e5-base (first run may download ~280 MB)")
+    log.info("Startup: loading multilingual-e5-small (first run may download ~470 MB)")
     from sentence_transformers import SentenceTransformer
 
-    _model = SentenceTransformer("intfloat/multilingual-e5-base")
+    _model = SentenceTransformer("intfloat/multilingual-e5-small")
     log.info("Startup: model loaded — sidecar ready")
 
     log.info("Startup: pre-importing google.generativeai (warms module cache)")
@@ -247,14 +247,14 @@ class ChatRequest(BaseModel):
 @app.get("/health")
 def health():
     """Liveness check. Returns 200 when the sidecar is ready."""
-    return {"status": "ok", "model": "multilingual-e5-base"}
+    return {"status": "ok", "model": "multilingual-e5-small"}
 
 
 @app.post("/embed")
 def embed(req: EmbedRequest):
-    """Embed a list of texts using multilingual-e5-base.
+    """Embed a list of texts using multilingual-e5-small.
 
-    Returns 768-dim float vectors in the same order as the input texts.
+    Returns 384-dim float vectors in the same order as the input texts.
     """
     if not req.texts:
         raise HTTPException(status_code=422, detail="texts must be a non-empty list")
@@ -262,7 +262,7 @@ def embed(req: EmbedRequest):
         raise HTTPException(status_code=503, detail="Model not initialised yet")
 
     try:
-        # multilingual-e5-base expects "query: " or "passage: " prefix for best results.
+        # multilingual-e5-small expects "query: " or "passage: " prefix for best results.
         # Callers specify mode="query" for retrieval, mode="passage" for indexing (default).
         prefix = "query" if req.mode == "query" else "passage"
         prefixed = [f"{prefix}: {t}" for t in req.texts]
@@ -275,9 +275,9 @@ def embed(req: EmbedRequest):
 
 @app.post("/search")
 def search(req: SearchRequest):
-    """Embed a query text and search all v3_* LanceDB tables.
+    """Embed a query text and search all v4_* LanceDB tables.
 
-    Uses "query: " prefix (multilingual-e5-base retrieval convention).
+    Uses "query: " prefix (multilingual-e5-small retrieval convention).
     Returns candidates sorted by ascending cosine distance, filtered by max_distance.
     """
     if not req.text:
@@ -285,7 +285,7 @@ def search(req: SearchRequest):
     if _model is None:
         raise HTTPException(status_code=503, detail="Model not initialised yet")
 
-    from frapperag.sidecar.store import search_all_v3_tables
+    from frapperag.sidecar.store import search_all_v4_tables
     import time as _time
 
     try:
@@ -295,7 +295,7 @@ def search(req: SearchRequest):
         log.info("[TIMING][/search] embed %.3fs", embed_ms)
 
         t0 = _time.monotonic()
-        results = search_all_v3_tables(vector, top_k=req.top_k, max_distance=req.max_distance)
+        results = search_all_v4_tables(vector, top_k=req.top_k, max_distance=req.max_distance)
         log.info("[TIMING][/search] vector_search %.3fs → %d results", _time.monotonic() - t0, len(results))
 
         return {"results": results}
@@ -306,7 +306,7 @@ def search(req: SearchRequest):
 
 @app.post("/upsert")
 def upsert(req: UpsertRequest):
-    """Embed one record's text and upsert its vector into the v3_ LanceDB table.
+    """Embed one record's text and upsert its vector into the v4_ LanceDB table.
 
     Creates the table if it does not exist.
     """

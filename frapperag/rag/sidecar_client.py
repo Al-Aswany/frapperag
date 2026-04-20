@@ -157,7 +157,7 @@ def search(
     max_distance: float = 1.0,
     port: int | None = None,
 ) -> list:
-    """POST /search — embed query text via sidecar and search all v3_* tables.
+    """POST /search — embed query text via sidecar and search all v4_* tables.
 
     Returns a list of dicts: {doctype, name, text, _distance} sorted by distance.
     Raises SidecarUnavailableError after 3 failed connection/timeout/transient attempts.
@@ -173,7 +173,7 @@ def search(
 
 
 def upsert_record(doctype: str, name: str, text: str, port: int | None = None) -> None:
-    """POST /upsert — embed text via sidecar and store in the v3_ table.
+    """POST /upsert — embed text via sidecar and store in the v4_ table.
 
     Raises SidecarUnavailableError after 3 failed connection/timeout/transient attempts.
     Raises SidecarPermanentError on 4xx client errors.
@@ -197,7 +197,7 @@ def delete_record(doctype: str, name: str, port: int | None = None) -> None:
     import httpx
     import urllib.parse
 
-    table = "v3_" + doctype.lower().replace(" ", "_")
+    table = "v4_" + doctype.lower().replace(" ", "_")
     record_id = f"{doctype}:{name}"
     # URL-encode the colon in the record_id component
     encoded_id = urllib.parse.quote(record_id, safe="")
@@ -239,7 +239,7 @@ def chat(
 
 
 def drop_table(doctype: str, port: int | None = None) -> None:
-    """DELETE /table/{table} — drop the entire v3_ table for a DocType.
+    """DELETE /table/{table} — drop the entire v4_ table for a DocType.
 
     Used when a DocType is removed from the whitelist (purge job).
     Idempotent — no error if the table does not exist.
@@ -249,6 +249,6 @@ def drop_table(doctype: str, port: int | None = None) -> None:
     """
     import httpx
 
-    table = "v3_" + doctype.lower().replace(" ", "_")
+    table = "v4_" + doctype.lower().replace(" ", "_")
     url = f"{_base_url(port)}/table/{table}"
     _retry_call(httpx.delete, url, timeout=30.0)

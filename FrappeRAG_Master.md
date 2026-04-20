@@ -55,9 +55,9 @@ Frappe worker (queue=short/long)
         │  httpx (localhost only)
         ▼
 RAG Sidecar (FastAPI + uvicorn, port 8100)
-  /embed    — multilingual-e5-base (local, 768 dims, Arabic+English)
+  /embed    — multilingual-e5-small (local, 384 dims, Arabic+English)
   /upsert   — embed + write to LanceDB
-  /search   — embed query + search v3_* tables
+  /search   — embed query + search v4_* tables
   /chat     — Gemini 2.5 Flash (supports function calling / tool_call response)
   /record   — DELETE single vector entry
   /table    — DELETE entire table
@@ -71,8 +71,8 @@ Workers **never** import `lancedb` or `sentence_transformers` directly — every
 |---|---|
 | Framework | Frappe v15+, ERPNext v15+ |
 | Python | 3.10+ |
-| Vector store | LanceDB (bench-level `rag/` dir, `v3_` table prefix) |
-| Embedding model | `multilingual-e5-base` (sentence-transformers, ~280 MB, 768 dims, Arabic+English) |
+| Vector store | LanceDB (bench-level `rag/` dir, `v4_` table prefix) |
+| Embedding model | `multilingual-e5-small` (sentence-transformers, ~470 MB, 384 dims, Arabic+English) |
 | Chat LLM | `gemini-2.5-flash` (paid tier, function calling enabled) |
 | Sidecar | FastAPI + uvicorn on `localhost:8100` |
 | Frontend | Vanilla JS only |
@@ -210,7 +210,7 @@ Warehouse manager asks "what's the stock balance for item 6956?" by voice while 
 ### What distinguishes FrappeRAG
 1. **Frappe-native, not a SaaS wrapper.** Vectors in `bench/rag/`, local embedding model, only Gemini is external. For Middle East businesses with sensitive financial data, "your data never leaves your server" is a requirement, not a feature.
 2. **Real permission-aware retrieval.** Enforced at indexing, retrieval, and prompt assembly — not just the UI layer. A sales rep cannot get answers about records they can't see in ERPNext.
-3. **Bilingual Arabic+English from day one.** `multilingual-e5-base` handles both in the same vector space. Ask in Arabic, get results from English-named items. Table stakes for Jordan/Gulf market; nobody delivers it natively.
+3. **Bilingual Arabic+English from day one.** `multilingual-e5-small` handles both in the same vector space. Ask in Arabic, get results from English-named items. Table stakes for Jordan/Gulf market; nobody delivers it natively.
 4. **Report and SQL tool calling bridges the RAG ceiling.** Vector search can't answer "count all X where Y." Tool calls can. Most RAG-over-ERP projects miss this entirely.
 5. **Zero infrastructure beyond the bench.** One `bench get-app` + one API key. No DevOps required.
 

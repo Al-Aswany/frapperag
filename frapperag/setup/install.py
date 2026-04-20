@@ -2,17 +2,33 @@ import os
 import frappe
 
 
+_SUPERVISOR_MARKER = "# --- frapperag rag_sidecar (managed by after_install/after_migrate) ---"
+
+
 def after_install():
     rag_path = os.path.join(frappe.utils.get_bench_path(), "rag")
     os.makedirs(rag_path, exist_ok=True)
     _ensure_existing_lancedb_indices(rag_path)
     _ensure_sidecar_procfile_entry()
+    _ensure_sidecar_supervisor_entry()
     seed_all_settings()
     frappe.db.commit()
 
 
+def after_migrate():
+    """Re-assert process-manager entries on every migrate.
+
+    `bench setup supervisor` regenerates config/supervisor.conf from a template
+    and wipes third-party entries. Frappe Cloud runs migrate on every deploy,
+    so re-appending here keeps the sidecar registered.
+    """
+    _ensure_sidecar_procfile_entry()
+    _ensure_sidecar_supervisor_entry()
+    seed_all_settings()
+
+
 def _ensure_existing_lancedb_indices(rag_path: str) -> None:
-    """Create ANN vector indices on any v3_* LanceDB tables that already exist.
+    """Create ANN vector indices on any v4_* LanceDB tables that already exist.
 
     On a fresh install this is a no-op (no tables yet).  On an upgrade where
     the DB already holds indexed data, this backfills the IVF_PQ indices so
@@ -23,7 +39,7 @@ def _ensure_existing_lancedb_indices(rag_path: str) -> None:
     try:
         db = lancedb.connect(rag_path)
         for table_name in db.table_names():
-            if not table_name.startswith("v3_"):
+            if not table_name.startswith("v4_"):
                 continue
             try:
                 table = db.open_table(table_name)
@@ -104,6 +120,75 @@ def _ensure_sidecar_procfile_entry() -> None:
     except Exception as exc:
         frappe.logger().warning(
             "frapperag after_install: could not update Procfile: %s", exc
+        )
+
+
+def _ensure_sidecar_supervisor_entry() -> None:
+    """Append a `[program:rag_sidecar]` block to config/supervisor.conf.
+
+    Production (Frappe Cloud, self-hosted with supervisor) uses supervisord, not
+    the Procfile. Appending to config/supervisor.conf is idempotent via
+    _SUPERVISOR_MARKER, and is re-asserted on every after_migrate since
+    `bench setup supervisor` regenerates that file from a template.
+
+    After install (or after `bench setup supervisor`) an admin must run:
+        sudo supervisorctl reread && sudo supervisorctl update
+    """
+    try:
+        import getpass
+
+        bench_path = frappe.utils.get_bench_path()
+        conf_path = os.path.join(bench_path, "config", "supervisor.conf")
+
+        if not os.path.exists(conf_path):
+            frappe.logger().warning(
+                "frapperag: %s not found — skipping supervisor entry "
+                "(bench may be in dev mode; Procfile entry will be used)",
+                conf_path,
+            )
+            return
+
+        with open(conf_path, "r") as f:
+            content = f.read()
+
+        if _SUPERVISOR_MARKER in content:
+            return  # already present
+
+        python_bin = os.path.join(bench_path, "env", "bin", "python")
+        sidecar_script = os.path.join(
+            bench_path, "apps", "frapperag", "frapperag", "sidecar", "main.py"
+        )
+        log_file = os.path.join(bench_path, "logs", "rag_sidecar.log")
+        err_file = os.path.join(bench_path, "logs", "rag_sidecar.error.log")
+        user = getpass.getuser()
+
+        block = (
+            f"\n{_SUPERVISOR_MARKER}\n"
+            "[program:rag_sidecar]\n"
+            f"command={python_bin} {sidecar_script} --port 8100\n"
+            "autostart=true\n"
+            "autorestart=true\n"
+            "startsecs=10\n"
+            "stopwaitsecs=30\n"
+            "stopasgroup=true\n"
+            "killasgroup=true\n"
+            f"stdout_logfile={log_file}\n"
+            f"stderr_logfile={err_file}\n"
+            f"user={user}\n"
+            f"directory={bench_path}\n"
+        )
+
+        with open(conf_path, "a") as f:
+            f.write(block)
+
+        frappe.logger().info(
+            "frapperag: appended rag_sidecar to %s. "
+            "Run `sudo supervisorctl reread && sudo supervisorctl update` to start it.",
+            conf_path,
+        )
+    except Exception as exc:
+        frappe.logger().warning(
+            "frapperag: could not update supervisor config: %s", exc
         )
 
 

@@ -4,8 +4,8 @@ A Retrieval-Augmented Generation (RAG) assistant for Frappe / ERPNext. FrappeRAG
 
 ## Features
 
-- **Local embedding** — `multilingual-e5-base` (sentence-transformers, ~280 MB, 768 dims) runs inside a persistent FastAPI sidecar; supports Arabic and English out of the box.
-- **Vector store** — LanceDB, stored in a bench-level `rag/` directory; table prefix `v3_`.
+- **Local embedding** — `multilingual-e5-small` (sentence-transformers, ~470 MB, 384 dims) runs inside a persistent FastAPI sidecar; supports Arabic and English out of the box.
+- **Vector store** — LanceDB, stored in a bench-level `rag/` directory; table prefix `v4_`.
 - **Incremental sync** — Frappe `doc_events` hooks (`on_update`, `after_rename`, `on_trash`) automatically keep the vector index in sync with every save, rename, or delete for whitelisted DocTypes.
 - **Bulk indexing** — RAG Index Manager page lets RAG Admins trigger a full re-index of any whitelisted DocType (or all at once), with real-time progress updates via `frappe.realtime`.
 - **Chat interface** — Vanilla JS chat page (`/rag-chat`) backed by Google Gemini 2.5 Flash with multi-turn conversation history and per-source citations.
@@ -23,7 +23,7 @@ Frappe worker (queue=short/long)
         │  httpx (localhost only)
         ▼
 RAG Sidecar  ── FastAPI + uvicorn ──  LanceDB (bench-level rag/)
-  /embed          multilingual-e5-base
+  /embed          multilingual-e5-small
   /upsert         sentence-transformers
   /search
   /chat           google-generativeai (Gemini 2.5 Flash)
@@ -139,7 +139,7 @@ bench start
 #   rag_sidecar  — FastAPI sidecar on localhost:8100
 ```
 
-The sidecar loads `multilingual-e5-base` on startup (first run downloads ~280 MB). Subsequent starts reuse the cached model.
+The sidecar loads `multilingual-e5-small` on startup (first run downloads ~470 MB). Subsequent starts reuse the cached model.
 
 ## Indexing
 
@@ -165,7 +165,7 @@ Navigate to **RAG Chat** (`/rag-chat`) in Frappe Desk. Each conversation is a `C
 
 The pipeline per message:
 1. Embed the question (sidecar `/search`).
-2. Retrieve top-5 candidates across all `v3_*` tables.
+2. Retrieve top-5 candidates across all `v4_*` tables.
 3. Filter by `frappe.has_permission` for the calling user.
 4. Load the last 10 conversation turns.
 5. Build the Gemini message list (system context + history + retrieved snippets + question).
@@ -207,9 +207,9 @@ The sidecar runs on `localhost` only and is not exposed to the internet.
 | Endpoint | Method | Description |
 |---|---|---|
 | `/health` | GET | Liveness check — returns `{status, model}` |
-| `/embed` | POST | Embed a list of texts; returns 768-dim vectors |
-| `/upsert` | POST | Embed and upsert one record into its `v3_` table |
-| `/search` | POST | Embed a query and search all `v3_*` tables |
+| `/embed` | POST | Embed a list of texts; returns 384-dim vectors |
+| `/upsert` | POST | Embed and upsert one record into its `v4_` table |
+| `/search` | POST | Embed a query and search all `v4_*` tables |
 | `/chat` | POST | Call Gemini with a conversation history |
 | `/record/{table}/{record_id}` | DELETE | Remove one vector entry (idempotent) |
 | `/table/{table}` | DELETE | Drop an entire LanceDB table (idempotent) |
