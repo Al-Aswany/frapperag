@@ -3,7 +3,7 @@
 Started by `bench start` via the Procfile entry added by after_install().
 Binds to localhost only (Constitution Principle IV).
 
-Heavy work (LanceDB + sentence-transformers) runs in `sync_startup()`, invoked
+Heavy work (LanceDB + embedding model) runs in `sync_startup()`, invoked
 from `__main__` *before* `uvicorn.run`. Uvicorn runs ASGI lifespan startup
 *before* it binds the listening socket; doing model load only in lifespan
 meant a ~minute-long load followed by bind failure if the port was already
@@ -20,6 +20,8 @@ import logging
 import os
 import socket
 import sys
+import threading
+import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
@@ -40,12 +42,15 @@ log = logging.getLogger("rag_sidecar")
 # Module-level state — set during lifespan startup, NOT at import time
 # ---------------------------------------------------------------------------
 
-_model = None                 # sentence_transformers.SentenceTransformer instance
+_provider = None  # EmbeddingProvider instance (GeminiProvider or E5SmallProvider)
 
 # Gemini SDK state — configured lazily on first /chat request, reused thereafter
 _genai_api_key: str | None    = None   # last key passed to genai.configure()
 _genai_model_name: str | None = None   # last model name used
 _genai_model_instance         = None   # cached genai.GenerativeModel instance
+
+# Install state — keyed by install_id
+_install_state: dict[str, dict] = {}
 
 
 def _resolve_rag_dir() -> str:
@@ -159,23 +164,25 @@ def assert_port_free(host: str, port: int) -> None:
 
 
 def sync_startup() -> None:
-    """Initialise LanceDB and the embedding model once (not at import time)."""
-    global _model
-    if _model is not None:
+    """Initialise LanceDB and the embedding provider once (not at import time)."""
+    global _provider
+    if _provider is not None:
         return
 
     rag_dir = _resolve_rag_dir()
     log.info("Startup: initialising LanceDB at %s", rag_dir)
     from frapperag.sidecar.store import init_store
-
     init_store(rag_dir)
     log.info("Startup: LanceDB connection ready")
 
-    log.info("Startup: loading multilingual-e5-small (first run may download ~470 MB)")
-    from sentence_transformers import SentenceTransformer
+    provider_name = os.environ.get("EMBEDDING_PROVIDER", "gemini")
+    from frapperag.sidecar.providers import build_provider
+    _provider = build_provider(provider_name)
+    _provider.warmup()
 
-    _model = SentenceTransformer("intfloat/multilingual-e5-small")
-    log.info("Startup: model loaded — sidecar ready")
+    from frapperag.sidecar.store import configure_provider
+    configure_provider(_provider.dim, _provider.table_prefix)
+    log.info("Startup: provider=%s dim=%d prefix=%s", _provider.name, _provider.dim, _provider.table_prefix)
 
     log.info("Startup: pre-importing google.generativeai (warms module cache)")
     import google.generativeai  # noqa: F401
@@ -189,15 +196,15 @@ def sync_startup() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """FastAPI lifespan — full init if `sync_startup` was not run earlier."""
-    global _model
+    global _provider
 
-    if _model is None:
+    if _provider is None:
         sync_startup()
 
     yield
 
     log.info("Shutdown: sidecar stopping")
-    _model = None
+    _provider = None
 
 
 # ---------------------------------------------------------------------------
@@ -214,18 +221,21 @@ app = FastAPI(title="FrappeRAG Sidecar", lifespan=lifespan)
 class EmbedRequest(BaseModel):
     texts: list[str]
     mode: str = "passage"  # "passage" for indexing, "query" for retrieval
+    api_key: str | None = None
 
 
 class SearchRequest(BaseModel):
     text: str
     top_k: int = 5
     max_distance: float = 1.0
+    api_key: str | None = None
 
 
 class UpsertRequest(BaseModel):
     doctype: str
     name: str
     text: str
+    api_key: str | None = None
 
 
 class ChatMessage(BaseModel):
@@ -240,6 +250,10 @@ class ChatRequest(BaseModel):
     tools: list[dict] | None = None  # per-report function declarations
 
 
+class InstallReq(BaseModel):
+    hf_token: str | None = None
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -247,58 +261,60 @@ class ChatRequest(BaseModel):
 @app.get("/health")
 def health():
     """Liveness check. Returns 200 when the sidecar is ready."""
-    return {"status": "ok", "model": "multilingual-e5-small"}
+    if _provider is None:
+        return {"status": "starting"}
+    return {
+        "status": "ok",
+        "provider": _provider.name,
+        "dim": _provider.dim,
+        "table_prefix": _provider.table_prefix,
+    }
 
 
 @app.post("/embed")
 def embed(req: EmbedRequest):
-    """Embed a list of texts using multilingual-e5-small.
-
-    Returns 384-dim float vectors in the same order as the input texts.
-    """
+    """Embed a list of texts using the active embedding provider."""
     if not req.texts:
         raise HTTPException(status_code=422, detail="texts must be a non-empty list")
-    if _model is None:
-        raise HTTPException(status_code=503, detail="Model not initialised yet")
+    if _provider is None:
+        raise HTTPException(status_code=503, detail="Provider not initialised yet")
 
     try:
-        # multilingual-e5-small expects "query: " or "passage: " prefix for best results.
-        # Callers specify mode="query" for retrieval, mode="passage" for indexing (default).
-        prefix = "query" if req.mode == "query" else "passage"
-        prefixed = [f"{prefix}: {t}" for t in req.texts]
-        vectors = _model.encode(prefixed, normalize_embeddings=True)
-        return {"vectors": [v.tolist() for v in vectors]}
+        vectors = _provider.embed(req.texts, req.mode, req.api_key)
+        return {"vectors": vectors}
+    except HTTPException:
+        raise
     except Exception as exc:
         log.exception("embed failed: %s", exc)
-        raise HTTPException(status_code=500, detail=f"Model inference failed: {exc}")
+        raise HTTPException(status_code=500, detail=f"Embed failed: {exc}")
 
 
 @app.post("/search")
 def search(req: SearchRequest):
-    """Embed a query text and search all v4_* LanceDB tables.
+    """Embed a query text and search all active-prefix LanceDB tables.
 
-    Uses "query: " prefix (multilingual-e5-small retrieval convention).
     Returns candidates sorted by ascending cosine distance, filtered by max_distance.
     """
     if not req.text:
         raise HTTPException(status_code=422, detail="text must be non-empty")
-    if _model is None:
-        raise HTTPException(status_code=503, detail="Model not initialised yet")
+    if _provider is None:
+        raise HTTPException(status_code=503, detail="Provider not initialised yet")
 
-    from frapperag.sidecar.store import search_all_v4_tables
+    from frapperag.sidecar.store import search_all_active_tables
     import time as _time
 
     try:
         t0 = _time.monotonic()
-        vector = _model.encode([f"query: {req.text}"], normalize_embeddings=True)[0].tolist()
-        embed_ms = _time.monotonic() - t0
-        log.info("[TIMING][/search] embed %.3fs", embed_ms)
+        vector = _provider.embed([req.text], "query", req.api_key)[0]
+        log.info("[TIMING][/search] embed %.3fs", _time.monotonic() - t0)
 
         t0 = _time.monotonic()
-        results = search_all_v4_tables(vector, top_k=req.top_k, max_distance=req.max_distance)
+        results = search_all_active_tables(vector, top_k=req.top_k, max_distance=req.max_distance)
         log.info("[TIMING][/search] vector_search %.3fs → %d results", _time.monotonic() - t0, len(results))
 
         return {"results": results}
+    except HTTPException:
+        raise
     except Exception as exc:
         log.exception("search failed: %s", exc)
         raise HTTPException(status_code=500, detail=f"Search failed: {exc}")
@@ -306,20 +322,19 @@ def search(req: SearchRequest):
 
 @app.post("/upsert")
 def upsert(req: UpsertRequest):
-    """Embed one record's text and upsert its vector into the v4_ LanceDB table.
+    """Embed one record's text and upsert its vector into the active-prefix LanceDB table.
 
     Creates the table if it does not exist.
     """
     if not req.doctype or not req.name or not req.text:
         raise HTTPException(status_code=422, detail="doctype, name, and text are required")
-    if _model is None:
-        raise HTTPException(status_code=503, detail="Model not initialised yet")
+    if _provider is None:
+        raise HTTPException(status_code=503, detail="Provider not initialised yet")
 
     from frapperag.sidecar.store import table_name_for, record_id_for, upsert_rows
 
     try:
-        prefixed = f"passage: {req.text}"
-        vector = _model.encode([prefixed], normalize_embeddings=True)[0]
+        vector = _provider.embed([req.text], "passage", req.api_key)[0]
 
         table_name = table_name_for(req.doctype)
         row = {
@@ -327,11 +342,13 @@ def upsert(req: UpsertRequest):
             "doctype":       req.doctype,
             "name":          req.name,
             "text":          req.text,
-            "vector":        vector.tolist(),
+            "vector":        vector,
             "last_modified": "",
         }
         upsert_rows(table_name, [row])
         return {"ok": True}
+    except HTTPException:
+        raise
     except Exception as exc:
         log.exception("upsert failed: %s", exc)
         raise HTTPException(status_code=500, detail=f"Upsert failed: {exc}")
@@ -467,6 +484,79 @@ def delete_table(table: str):
         raise HTTPException(status_code=500, detail=f"Drop table failed: {exc}")
 
 
+@app.get("/tables/populated")
+def tables_populated(prefix: str = ""):
+    """Return populated tables under the given prefix.
+
+    Used by worker-side helpers to check if the active prefix has data.
+    """
+    from frapperag.sidecar.store import list_populated_tables
+    try:
+        active_prefix = prefix if prefix else (_provider.table_prefix if _provider else "")
+        tables = list_populated_tables(active_prefix)
+        return {"populated": len(tables) > 0, "tables": tables, "prefix": active_prefix}
+    except Exception as exc:
+        log.exception("tables_populated failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"tables_populated failed: {exc}")
+
+
+@app.post("/install_local_model")
+def install_local_model(req: InstallReq):
+    """Kick off a background download and test of multilingual-e5-small.
+
+    Returns an install_id immediately; poll /install_local_model/status/{install_id}
+    for progress. The endpoint never changes embedding_provider — that is the
+    worker/admin's responsibility after install succeeds.
+    """
+    install_id = uuid.uuid4().hex
+    _install_state[install_id] = {
+        "phase": "queued", "percent": 0,
+        "terminal": False, "ok": False, "message": "",
+    }
+    threading.Thread(target=_do_install, args=(install_id, req.hf_token), daemon=True).start()
+    return {"install_id": install_id}
+
+
+@app.get("/install_local_model/status/{install_id}")
+def install_local_model_status(install_id: str):
+    """Poll install progress."""
+    s = _install_state.get(install_id)
+    if not s:
+        raise HTTPException(404, "unknown install_id")
+    return s
+
+
+def _do_install(install_id: str, hf_token: str | None) -> None:
+    state = _install_state[install_id]
+    try:
+        cache_dir = os.path.expanduser(
+            "~/.cache/huggingface/hub/models--intfloat--multilingual-e5-small"
+        )
+        if os.path.isdir(cache_dir) and os.listdir(cache_dir):
+            state.update(phase="cached", percent=80, message="Using existing snapshot")
+        else:
+            state.update(phase="download", percent=5, message="Starting download…")
+            from huggingface_hub import snapshot_download
+            snapshot_download("intfloat/multilingual-e5-small", token=hf_token or None)
+            state.update(phase="download", percent=70, message="Download complete")
+
+        state.update(phase="load", percent=85, message="Loading model into memory…")
+        from sentence_transformers import SentenceTransformer
+        m = SentenceTransformer("intfloat/multilingual-e5-small")
+
+        state.update(phase="test_embed", percent=95, message="Running test embedding…")
+        v = m.encode(["test"], normalize_embeddings=True)
+        assert len(v[0]) == 384
+
+        state.update(phase="done", percent=100, terminal=True, ok=True,
+                     dim=384, message="Local model ready")
+    except MemoryError as exc:
+        state.update(phase="failed", terminal=True, ok=False,
+                     message=f"OOM during install: {exc}")
+    except Exception as exc:
+        state.update(phase="failed", terminal=True, ok=False, message=str(exc))
+
+
 # ---------------------------------------------------------------------------
 # Direct invocation entry point
 # ---------------------------------------------------------------------------
@@ -483,7 +573,7 @@ if __name__ == "__main__":
     if args.rag_dir:
         os.environ["RAG_DIR"] = args.rag_dir
 
-    # Import the package module so `_model` / `app` are the same objects uvicorn will use.
+    # Import the package module so `_provider` / `app` are the same objects uvicorn will use.
     import frapperag.sidecar.main as sidecar_mod
 
     host = "127.0.0.1"

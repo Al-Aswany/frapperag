@@ -57,6 +57,18 @@ def _base_url(port: int | None) -> str:
     return f"http://127.0.0.1:{resolved}"
 
 
+def _active_table_prefix() -> str:
+    """Return the LanceDB table prefix for the currently configured embedding provider."""
+    import frappe
+    try:
+        provider = frappe.get_cached_doc("AI Assistant Settings").embedding_provider or "gemini"
+    except Exception:
+        provider = "gemini"
+    if provider == "e5-small":
+        return "v6_e5small_"
+    return "v5_gemini_"
+
+
 def _retry_call(fn, *args, **kwargs):
     """Call fn(*args, **kwargs) up to 3 times with exponential back-off.
 
@@ -155,9 +167,10 @@ def search(
     text: str,
     top_k: int = 5,
     max_distance: float = 1.0,
+    api_key: str | None = None,
     port: int | None = None,
 ) -> list:
-    """POST /search — embed query text via sidecar and search all v4_* tables.
+    """POST /search — embed query text via sidecar and search all active-prefix tables.
 
     Returns a list of dicts: {doctype, name, text, _distance} sorted by distance.
     Raises SidecarUnavailableError after 3 failed connection/timeout/transient attempts.
@@ -168,12 +181,20 @@ def search(
 
     url = f"{_base_url(port)}/search"
     payload = {"text": text, "top_k": top_k, "max_distance": max_distance}
+    if api_key:
+        payload["api_key"] = api_key
     response = _retry_call(httpx.post, url, json=payload, timeout=30.0)
     return response.json()["results"]
 
 
-def upsert_record(doctype: str, name: str, text: str, port: int | None = None) -> None:
-    """POST /upsert — embed text via sidecar and store in the v4_ table.
+def upsert_record(
+    doctype: str,
+    name: str,
+    text: str,
+    api_key: str | None = None,
+    port: int | None = None,
+) -> None:
+    """POST /upsert — embed text via sidecar and store in the active-prefix table.
 
     Raises SidecarUnavailableError after 3 failed connection/timeout/transient attempts.
     Raises SidecarPermanentError on 4xx client errors.
@@ -183,6 +204,8 @@ def upsert_record(doctype: str, name: str, text: str, port: int | None = None) -
 
     url = f"{_base_url(port)}/upsert"
     payload = {"doctype": doctype, "name": name, "text": text}
+    if api_key:
+        payload["api_key"] = api_key
     _retry_call(httpx.post, url, json=payload, timeout=30.0)
 
 
@@ -197,7 +220,7 @@ def delete_record(doctype: str, name: str, port: int | None = None) -> None:
     import httpx
     import urllib.parse
 
-    table = "v4_" + doctype.lower().replace(" ", "_")
+    table = _active_table_prefix() + doctype.lower().replace(" ", "_")
     record_id = f"{doctype}:{name}"
     # URL-encode the colon in the record_id component
     encoded_id = urllib.parse.quote(record_id, safe="")
@@ -239,7 +262,7 @@ def chat(
 
 
 def drop_table(doctype: str, port: int | None = None) -> None:
-    """DELETE /table/{table} — drop the entire v4_ table for a DocType.
+    """DELETE /table/{table} — drop the active-prefix table for a DocType.
 
     Used when a DocType is removed from the whitelist (purge job).
     Idempotent — no error if the table does not exist.
@@ -249,6 +272,41 @@ def drop_table(doctype: str, port: int | None = None) -> None:
     """
     import httpx
 
-    table = "v4_" + doctype.lower().replace(" ", "_")
+    table = _active_table_prefix() + doctype.lower().replace(" ", "_")
     url = f"{_base_url(port)}/table/{table}"
     _retry_call(httpx.delete, url, timeout=30.0)
+
+
+def tables_populated(prefix: str, port: int | None = None) -> dict:
+    """GET /tables/populated — check if any tables exist under a prefix.
+
+    Returns {"populated": bool, "tables": [...], "prefix": str}.
+    Used by the dashboard banner and get_active_prefix_status().
+    """
+    import httpx
+
+    url = f"{_base_url(port)}/tables/populated"
+    response = _retry_call(httpx.get, url, params={"prefix": prefix}, timeout=10.0)
+    return response.json()
+
+
+def install_local_model(hf_token: str | None = None, port: int | None = None) -> dict:
+    """POST /install_local_model — start a background download of e5-small in the sidecar.
+
+    Returns {"install_id": str}.
+    """
+    import httpx
+
+    url = f"{_base_url(port)}/install_local_model"
+    payload = {"hf_token": hf_token}
+    response = _retry_call(httpx.post, url, json=payload, timeout=30.0)
+    return response.json()
+
+
+def install_local_model_status(install_id: str, port: int | None = None) -> dict:
+    """GET /install_local_model/status/{install_id} — poll install progress."""
+    import httpx
+
+    url = f"{_base_url(port)}/install_local_model/status/{install_id}"
+    response = _retry_call(httpx.get, url, timeout=10.0)
+    return response.json()

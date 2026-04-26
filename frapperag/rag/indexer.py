@@ -148,6 +148,12 @@ def run_indexing_job(indexing_job_id: str, doctype: str, user: str, **kwargs):
     # Enforce the triggering user's permission context (Principle III)
     frappe.set_user(user)
 
+    # Read api_key inside the job — kept out of Redis (see DocIndexerTool.execute comment)
+    try:
+        api_key = frappe.get_cached_doc("AI Assistant Settings").get_password("gemini_api_key") or None
+    except Exception:
+        api_key = None
+
     job = frappe.get_doc("AI Indexing Job", job_id)
     job.status               = "Running"
     job.start_time           = now_datetime()
@@ -198,8 +204,7 @@ def run_indexing_job(indexing_job_id: str, doctype: str, user: str, **kwargs):
 
             try:
                 # Embed + upsert via sidecar — single HTTP call per record.
-                # The sidecar applies "passage: " prefix and writes to the v4_ table.
-                upsert_record(doctype, rec["name"], text)
+                upsert_record(doctype, rec["name"], text, api_key=api_key)
                 job.processed_records += 1
 
             except SidecarUnavailableError as exc:

@@ -5,9 +5,138 @@
 frappe.ui.form.on("AI Assistant Settings", {
     refresh(frm) {
         frm.add_custom_button(__("Index All"), () => _trigger_full_index(frm), __("Actions"));
+        _sync_install_button(frm);
+        _render_active_prefix_banner(frm);
         _render_sync_health(frm);
     },
+    embedding_provider(frm) {
+        _sync_install_button(frm);
+        _render_provider_help(frm);
+    },
 });
+
+function _sync_install_button(frm) {
+    const v = frm.doc.embedding_provider;
+    frm.remove_custom_button(__("Install Local Model"), __("Actions"));
+    if (v === "e5-small") {
+        frm.add_custom_button(__("Install Local Model"),
+                              () => _open_install_dialog(frm),
+                              __("Actions"));
+    }
+}
+
+function _render_provider_help(frm) {
+    const v = frm.doc.embedding_provider;
+    let msg = "";
+    if (v === "gemini") {
+        msg = __("Gemini (cloud): indexed document text is sent to Google for embedding. Fast and requires no local resources.");
+    } else if (v === "e5-small") {
+        msg = __("e5-small (local): ~470 MB download, requires ≥2 GB RAM. Indexed text stays on your server — no embedding egress to Google.");
+    }
+    frm.set_df_property("embedding_provider", "description", msg ||
+        "gemini = Google text-embedding-004 (cloud, 768-dim). e5-small = local multilingual-e5-small (384-dim, no egress).");
+}
+
+function _render_active_prefix_banner(frm) {
+    frappe.call({
+        method: "frapperag.api.local_model.get_active_prefix_status",
+        callback(r) {
+            if (r.exc || !r.message) return;
+            const { populated_tables, expected_doctypes } = r.message;
+            if (populated_tables.length === 0 && expected_doctypes.length > 0) {
+                frm.dashboard.add_indicator(
+                    __("Active embedding prefix is empty — run Index All to populate"),
+                    "orange"
+                );
+            }
+        },
+    });
+}
+
+function _open_install_dialog(frm) {
+    const dlg = new frappe.ui.Dialog({
+        title: __("Install Local Embedding Model"),
+        fields: [
+            {
+                fieldname: "info",
+                fieldtype: "HTML",
+                options: `<p class="text-muted">${__("Downloads multilingual-e5-small (~470 MB) from HuggingFace and loads it into the sidecar for a test embed. Requires ≥2 GB RAM.")}</p>
+                          <p class="text-muted">${__("HF Token is optional — only required for gated models or rate-limited accounts.")}</p>
+                          <p class="text-warning">${__("The token is never stored — it is only used for this download.")}</p>`,
+            },
+            {
+                fieldname: "hf_token",
+                fieldtype: "Password",
+                label: __("HuggingFace Token (optional)"),
+            },
+        ],
+        primary_action_label: __("Install"),
+        primary_action({ hf_token }) {
+            dlg.set_primary_action(__("Installing…"), null);
+            dlg.disable_primary_action();
+            dlg.fields_dict.info.$wrapper.html(_build_progress_html());
+            frappe.call({
+                method: "frapperag.api.local_model.install_local_model",
+                args: { hf_token: hf_token || null },
+                callback(r) {
+                    if (r.exc) {
+                        dlg.fields_dict.info.$wrapper.find("#install-status")
+                            .html(`<span class="text-danger">${frappe.utils.escape_html(r.exc)}</span>`);
+                        dlg.enable_primary_action();
+                        dlg.set_primary_action(__("Retry"), dlg.primary_action);
+                        return;
+                    }
+                    _subscribe_install_progress(r.message.job_id, dlg, frm);
+                },
+            });
+        },
+    });
+    dlg.show();
+}
+
+function _build_progress_html() {
+    return `
+    <div class="progress" style="margin-bottom:8px">
+      <div id="install-bar" class="progress-bar progress-bar-striped active"
+           role="progressbar" style="width:0%">0%</div>
+    </div>
+    <p id="install-status" class="text-muted" style="font-size:13px">Queued…</p>
+    <pre id="install-log" style="max-height:150px;overflow-y:auto;font-size:11px;background:#f5f5f5;padding:6px;border-radius:3px"></pre>`;
+}
+
+function _subscribe_install_progress(job_id, dlg, frm) {
+    function handler(data) {
+        if (!data || data.job_id !== job_id) return;
+
+        const pct = data.percent || 0;
+        const $bar = dlg.fields_dict.info.$wrapper.find("#install-bar");
+        const $status = dlg.fields_dict.info.$wrapper.find("#install-status");
+        const $log = dlg.fields_dict.info.$wrapper.find("#install-log");
+
+        $bar.css("width", pct + "%").text(pct + "%");
+        $status.text(data.message || data.phase || "");
+        if (data.message) {
+            $log.append(frappe.utils.escape_html(data.message) + "\n");
+            $log.scrollTop($log[0].scrollHeight);
+        }
+
+        if (data.terminal) {
+            frappe.realtime.off("rag_local_model_install_progress", handler);
+            if (data.ok) {
+                $bar.removeClass("active").addClass("progress-bar-success");
+                $status.html(`<span class="text-success">${__("Install successful — click Save to persist Embedding Provider = e5-small, then restart the sidecar and run Index All.")}</span>`);
+                dlg.set_primary_action(__("Close"), () => dlg.hide());
+                dlg.enable_primary_action();
+            } else {
+                $bar.removeClass("active").addClass("progress-bar-danger");
+                $status.html(`<span class="text-danger">${frappe.utils.escape_html(data.message)}</span>`);
+                dlg.set_primary_action(__("Retry"), dlg.primary_action);
+                dlg.enable_primary_action();
+            }
+        }
+    }
+    frappe.realtime.on("rag_local_model_install_progress", handler);
+}
 
 function _trigger_full_index(frm) {
     frappe.confirm(

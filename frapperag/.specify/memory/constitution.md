@@ -1,4 +1,4 @@
-# [PROJECT_NAME] Constitution
+# FrappeRAG Constitution
 <!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
 
 ## Core Principles
@@ -18,10 +18,12 @@
 [PRINCIPLE_3_DESCRIPTION]
 <!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### IV. Data Sovereignty
+Indexed document text is sent to Google by default (text-embedding-004 cloud
+endpoint). Operators who require fully local embedding can opt into
+multilingual-e5-small via AI Assistant Settings → Embedding Provider. Chat
+generation always uses Google Gemini regardless of provider — switching the
+embedding provider does NOT make the system fully on-premise.
 
 ### [PRINCIPLE_5_NAME]
 <!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
@@ -46,5 +48,4 @@
 [GOVERNANCE_RULES]
 <!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Version**: 0.1.0 | **Ratified**: 2026-04-26 | **Last Amended**: 2026-04-26

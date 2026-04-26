@@ -11,22 +11,31 @@ attempts before the bench path is configured.
 
 import pyarrow as pa
 
-EMBEDDING_DIM = 384  # multilingual-e5-small output dimensions
-TABLE_PREFIX = "v4_"
-
-# Schema mirrors lancedb_store.py (v1_) but uses v4_ prefix and
-# is accessed exclusively via the sidecar HTTP API.
-_SCHEMA = pa.schema([
-    pa.field("id",            pa.string()),
-    pa.field("doctype",       pa.string()),
-    pa.field("name",          pa.string()),
-    pa.field("text",          pa.string()),
-    pa.field("vector",        pa.list_(pa.float32(), EMBEDDING_DIM)),
-    pa.field("last_modified", pa.string()),
-])
+# Provider-specific schema state — set by configure_provider() during startup.
+_DIM: int | None = None
+_PREFIX: str | None = None
+_SCHEMA = None
 
 # Module-level connection reference — set by init_store() during lifespan startup.
 _db = None
+
+
+def configure_provider(dim: int, prefix: str) -> None:
+    """Set the active embedding dimension and table prefix.
+
+    Called once from sync_startup() after build_provider().
+    """
+    global _DIM, _PREFIX, _SCHEMA
+    _DIM = dim
+    _PREFIX = prefix
+    _SCHEMA = pa.schema([
+        pa.field("id",            pa.string()),
+        pa.field("doctype",       pa.string()),
+        pa.field("name",          pa.string()),
+        pa.field("text",          pa.string()),
+        pa.field("vector",        pa.list_(pa.float32(), dim)),
+        pa.field("last_modified", pa.string()),
+    ])
 
 
 def init_store(rag_dir: str) -> None:
@@ -42,8 +51,10 @@ def init_store(rag_dir: str) -> None:
 
 
 def _table_name(doctype: str) -> str:
-    """Compute the v4_ table name for a given DocType."""
-    return TABLE_PREFIX + doctype.lower().replace(" ", "_")
+    """Compute the active-prefix table name for a given DocType."""
+    if _PREFIX is None:
+        raise RuntimeError("store not configured — call configure_provider() first")
+    return _PREFIX + doctype.lower().replace(" ", "_")
 
 
 def _record_id(doctype: str, name: str) -> str:
@@ -52,14 +63,16 @@ def _record_id(doctype: str, name: str) -> str:
 
 
 def get_or_create_table(table_name: str):
-    """Open or create a LanceDB table with the standard v4_ schema."""
+    """Open or create a LanceDB table with the active provider schema."""
     if _db is None:
         raise RuntimeError("store not initialised — call init_store() first")
+    if _SCHEMA is None:
+        raise RuntimeError("store not configured — call configure_provider() first")
     return _db.create_table(table_name, schema=_SCHEMA, exist_ok=True)
 
 
 def upsert_rows(table_name: str, rows: list[dict]) -> None:
-    """Upsert a list of row dicts into a v4_ LanceDB table.
+    """Upsert a list of row dicts into a LanceDB table.
 
     Uses merge_insert("id") so existing entries are updated in-place
     and new entries are inserted without rebuilding the table.
@@ -74,7 +87,7 @@ def upsert_rows(table_name: str, rows: list[dict]) -> None:
 
 
 def delete_row(table_name: str, record_id: str) -> bool:
-    """Delete a single row from a v4_ table by composite ID.
+    """Delete a single row from a table by composite ID.
 
     Returns True if the row existed and was deleted, False if it was not found.
     No-op (returns False) if the table does not exist.
@@ -86,7 +99,6 @@ def delete_row(table_name: str, record_id: str) -> bool:
     except Exception:
         return False  # table does not exist — idempotent
 
-    # Check row count before and after to determine if anything was deleted.
     before = table.count_rows(filter=f"id = '{record_id}'")
     if before == 0:
         return False
@@ -95,7 +107,7 @@ def delete_row(table_name: str, record_id: str) -> bool:
 
 
 def drop_table(table_name: str) -> bool:
-    """Drop an entire v4_ LanceDB table.
+    """Drop an entire LanceDB table.
 
     Returns True if the table existed and was dropped, False if not found.
     Idempotent — no error if the table does not exist.
@@ -112,9 +124,9 @@ def drop_table(table_name: str) -> bool:
 def _search_one_table(
     table_name: str, query_vector: list, top_k: int, max_distance: float
 ) -> tuple[str, list, float]:
-    """Search a single v4_* table. Returns (table_name, rows, elapsed_seconds).
+    """Search a single table. Returns (table_name, rows, elapsed_seconds).
 
-    Called from a ThreadPoolExecutor worker inside search_all_v4_tables.
+    Called from a ThreadPoolExecutor worker inside search_all_active_tables.
     """
     import time as _time
     t0 = _time.monotonic()
@@ -130,13 +142,13 @@ def _search_one_table(
     return table_name, rows, _time.monotonic() - t0
 
 
-def search_all_v4_tables(query_vector: list, top_k: int = 5, max_distance: float = 1.0) -> list:
-    """Search all v4_* tables with a pre-computed query vector.
+def search_all_active_tables(query_vector: list, top_k: int = 5, max_distance: float = 1.0) -> list:
+    """Search all active-prefix tables with a pre-computed query vector.
 
     Searches tables in parallel (ThreadPoolExecutor) when more than one table exists.
     Returns a list of dicts: {doctype, name, text, _distance}, sorted by distance.
     Tables that cannot be opened or searched are skipped silently.
-    Returns [] if no v4_* tables exist.
+    Returns [] if no active-prefix tables exist.
     """
     import logging
     from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -145,7 +157,7 @@ def search_all_v4_tables(query_vector: list, top_k: int = 5, max_distance: float
         raise RuntimeError("store not initialised — call init_store() first")
 
     _log = logging.getLogger("rag_sidecar")
-    table_names = [t for t in _db.table_names() if t.startswith(TABLE_PREFIX)]
+    table_names = [t for t in _db.table_names() if t.startswith(_PREFIX)]
     if not table_names:
         return []
 
@@ -171,6 +183,23 @@ def search_all_v4_tables(query_vector: list, top_k: int = 5, max_distance: float
 
     results.sort(key=lambda r: r["_distance"])
     return results
+
+
+def list_populated_tables(prefix: str) -> list[str]:
+    """Return table names under prefix that have at least one row."""
+    if _db is None:
+        raise RuntimeError("store not initialised — call init_store() first")
+    result = []
+    for name in _db.table_names():
+        if not name.startswith(prefix):
+            continue
+        try:
+            table = _db.open_table(name)
+            if table.count_rows() > 0:
+                result.append(name)
+        except Exception:
+            pass
+    return result
 
 
 # Convenience helpers used by main.py endpoints

@@ -18,6 +18,7 @@
   "aggregate_fields",
   "section_sidecar",
   "sidecar_port",
+  "embedding_provider",
   "section_sync_health",
   "sync_health_html"
  ],
@@ -96,6 +97,14 @@
    "label": "Sidecar Port"
   },
   {
+   "default": "gemini",
+   "description": "gemini = Google text-embedding-004 (cloud, 768-dim, indexed text leaves your server). e5-small = local multilingual-e5-small (384-dim, no egress).",
+   "fieldname": "embedding_provider",
+   "fieldtype": "Select",
+   "label": "Embedding Provider",
+   "options": "gemini\ne5-small"
+  },
+  {
    "collapsible": 1,
    "fieldname": "section_sync_health",
    "fieldtype": "Section Break",
@@ -110,7 +119,7 @@
  "index_web_pages_for_search": 0,
  "issingle": 1,
  "links": [],
- "modified": "2026-04-09 00:00:00.000000",
+ "modified": "2026-04-26 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "FrappeRAG",
  "name": "AI Assistant Settings",

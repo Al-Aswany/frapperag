@@ -4,8 +4,8 @@ A Retrieval-Augmented Generation (RAG) assistant for Frappe / ERPNext. FrappeRAG
 
 ## Features
 
-- **Local embedding** — `multilingual-e5-small` (sentence-transformers, ~470 MB, 384 dims) runs inside a persistent FastAPI sidecar; supports Arabic and English out of the box.
-- **Vector store** — LanceDB, stored in a bench-level `rag/` directory; table prefix `v4_`.
+- **Embedding (default: cloud)** — Google `text-embedding-004` (768-dim) by default. Opt into `multilingual-e5-small` (local, 384-dim, ~470 MB) via AI Assistant Settings → Embedding Provider for full data sovereignty on the embedding path.
+- **Vector store** — LanceDB, stored in a bench-level `rag/` directory; table prefix `v5_gemini_` or `v6_e5small_` depending on the active provider.
 - **Incremental sync** — Frappe `doc_events` hooks (`on_update`, `after_rename`, `on_trash`) automatically keep the vector index in sync with every save, rename, or delete for whitelisted DocTypes.
 - **Bulk indexing** — RAG Index Manager page lets RAG Admins trigger a full re-index of any whitelisted DocType (or all at once), with real-time progress updates via `frappe.realtime`.
 - **Chat interface** — Vanilla JS chat page (`/rag-chat`) backed by Google Gemini 2.5 Flash with multi-turn conversation history and per-source citations.
@@ -15,6 +15,12 @@ A Retrieval-Augmented Generation (RAG) assistant for Frappe / ERPNext. FrappeRAG
 - **Health monitoring** — Periodic sidecar health checks with response-time tracking via the `RAG System Health` Single DocType.
 - **Roles** — two fixtures (`RAG Admin`, `RAG User`) control access. System Managers always have full access.
 
+## Data Sovereignty
+
+By default, indexed document text is sent to Google for embedding (text-embedding-004 cloud endpoint). To run embedding fully on your own server, set **Embedding Provider** to `e5-small` in AI Assistant Settings and click **Install Local Model**. The sidecar will download multilingual-e5-small (~470 MB, requires ≥2 GB RAM) and run all embedding locally — indexed text never leaves your server.
+
+**Note:** Chat generation always uses Google Gemini regardless of this setting. Switching the embedding provider does NOT make the system fully on-premise.
+
 ## Architecture
 
 ```
@@ -23,12 +29,15 @@ Frappe worker (queue=short/long)
         │  httpx (localhost only)
         ▼
 RAG Sidecar  ── FastAPI + uvicorn ──  LanceDB (bench-level rag/)
-  /embed          multilingual-e5-small
-  /upsert         sentence-transformers
-  /search
+  /embed          → Gemini cloud OR local e5-small (selectable via EMBEDDING_PROVIDER)
+  /upsert         → writes to v5_gemini_* or v6_e5small_* tables
+  /search         → queries active-prefix tables
   /chat           google-generativeai (Gemini 2.5 Flash)
   /record/:id DELETE
   /table/:name DELETE
+  /tables/populated GET
+  /install_local_model POST
+  /install_local_model/status/:id GET
 ```
 
 Workers **never** import `lancedb` or `sentence_transformers` directly. All vector and embedding operations are delegated to the sidecar via `frapperag.rag.sidecar_client`.
@@ -139,7 +148,7 @@ bench start
 #   rag_sidecar  — FastAPI sidecar on localhost:8100
 ```
 
-The sidecar loads `multilingual-e5-small` on startup (first run downloads ~470 MB). Subsequent starts reuse the cached model.
+The sidecar loads the configured embedding provider on startup. With the default `gemini` provider there is no local model download. With `e5-small`, the first run downloads multilingual-e5-small (~470 MB); subsequent starts reuse the HuggingFace cache.
 
 ## Indexing
 
@@ -165,7 +174,7 @@ Navigate to **RAG Chat** (`/rag-chat`) in Frappe Desk. Each conversation is a `C
 
 The pipeline per message:
 1. Embed the question (sidecar `/search`).
-2. Retrieve top-5 candidates across all `v4_*` tables.
+2. Retrieve top-5 candidates across all active-prefix tables (`v5_gemini_*` or `v6_e5small_*`).
 3. Filter by `frappe.has_permission` for the calling user.
 4. Load the last 10 conversation turns.
 5. Build the Gemini message list (system context + history + retrieved snippets + question).
@@ -206,13 +215,16 @@ The sidecar runs on `localhost` only and is not exposed to the internet.
 
 | Endpoint | Method | Description |
 |---|---|---|
-| `/health` | GET | Liveness check — returns `{status, model}` |
-| `/embed` | POST | Embed a list of texts; returns 384-dim vectors |
-| `/upsert` | POST | Embed and upsert one record into its `v4_` table |
-| `/search` | POST | Embed a query and search all `v4_*` tables |
+| `/health` | GET | Liveness check — returns `{status, provider, dim, table_prefix}` |
+| `/embed` | POST | Embed a list of texts using the active provider |
+| `/upsert` | POST | Embed and upsert one record into its active-prefix table |
+| `/search` | POST | Embed a query and search all active-prefix tables |
 | `/chat` | POST | Call Gemini with a conversation history |
 | `/record/{table}/{record_id}` | DELETE | Remove one vector entry (idempotent) |
 | `/table/{table}` | DELETE | Drop an entire LanceDB table (idempotent) |
+| `/tables/populated` | GET | List populated tables under a prefix |
+| `/install_local_model` | POST | Start background download of multilingual-e5-small |
+| `/install_local_model/status/{id}` | GET | Poll install progress |
 
 ## Supported DocTypes
 

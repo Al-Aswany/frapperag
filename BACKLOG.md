@@ -1,5 +1,21 @@
 Backlog
 
+## CH-05 record_lookup citation missing for PUR-ORD-2026-00077 (v1.2)
+
+- **Question:** (citation_hygiene category — asks about a specific Purchase Order by number)
+- **Expected:** `record_detail` citation + `must_contain: PUR-ORD-2026-00077`
+- **Observed:** FAIL — 0 citations, response does not mention the PO number
+- **Run:** v2_results_20260426T043904.json, 2026-04-26
+- **Root cause candidates:**
+  1. PUR-ORD-2026-00077 not yet indexed under the new `v5_gemini_*` prefix (was indexed under old `v4_*` with e5-small; provider changed to Gemini in v1.2 → full re-index required).
+  2. Exact alphanumeric ID lookup known weakness of dense-only retrieval (see 7-D-002). `record_lookup` tool should cover this but may not have fired.
+- **Fix options:**
+  1. Run Index All from `/rag-admin` to populate `v5_gemini_*` tables, then re-run CH-05.
+  2. Verify the `record_lookup` SQL template is handling Purchase Order lookups correctly.
+  3. Long-term: hybrid retrieval (dense + BM25) for exact-ID queries.
+
+---
+
 ## EM-03 Timeout (non-regression)
 
 - **Question:** "List all stock entries of type Transfer for item FAKE-ITEM-ZZZ-9999."

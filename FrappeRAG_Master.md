@@ -12,7 +12,7 @@ Everything runs **inside the Frappe bench**. No Docker, no cloud vector DB, no d
 
 ---
 
-## 2. Current Status (as of v1.1)
+## 2. Current Status (as of v1.2)
 
 | Phase | Name | Status |
 |---|---|---|
@@ -25,14 +25,15 @@ Everything runs **inside the Frappe bench**. No Docker, no cloud vector DB, no d
 | 7 | Chat Quality Test Matrix | ✅ Shipped (30/30) |
 | 8 | v1.0 — ExecuteQuery + SQL Templates | ✅ Shipped |
 | 8.5 | v1.1 — Parametric `aggregate_doctype` | ✅ Shipped (34/35, 97%) |
-| 8.75 | v1.2 — Text-to-SQL with Guardrails | 🔜 Next candidate |
+| 7a | v1.2 — Pluggable Embedding Provider | ✅ Shipped (49/50, 98%) |
+| 8.75 | v1.3 — Text-to-SQL with Guardrails | 🔜 Next candidate |
 | 9 | Files & Images | 📋 Planned |
 | 9.5 | Google Search Grounding | 📋 Planned |
 | 10 | Agentic Write Actions | 📋 Planned |
 | 11 | WhatsApp/Telegram Voice | 📋 Planned |
 
-**Latest tag:** `v1.1`
-**Test matrix:** 34/35 passing (one skip: EM-03 timeout on a deliberately-fake item ID, logged to backlog)
+**Latest tag:** `v1.2`
+**Test matrix:** 49/50 passing (one failure: CH-05 record_lookup citation missing for PUR-ORD-2026-00077, logged to backlog)
 
 ---
 
@@ -55,13 +56,18 @@ Frappe worker (queue=short/long)
         │  httpx (localhost only)
         ▼
 RAG Sidecar (FastAPI + uvicorn, port 8100)
-  /embed    — multilingual-e5-small (local, 384 dims, Arabic+English)
-  /upsert   — embed + write to LanceDB
-  /search   — embed query + search v4_* tables
+  /embed    — active provider: gemini-embedding-001 (cloud) OR multilingual-e5-small (local)
+  /upsert   — embed + write to LanceDB (v5_gemini_* or v6_e5small_*)
+  /search   — embed query + search active-prefix tables
   /chat     — Gemini 2.5 Flash (supports function calling / tool_call response)
   /record   — DELETE single vector entry
   /table    — DELETE entire table
+  /tables/populated  — list populated tables for active prefix
+  /install_local_model        — background download of multilingual-e5-small
+  /install_local_model/status — poll install progress
 ```
+
+Provider is selected at sidecar startup via `EMBEDDING_PROVIDER` env var (`gemini` or `e5-small`). Changing it in AI Assistant Settings rewrites the Procfile/supervisor entry automatically.
 
 Workers **never** import `lancedb` or `sentence_transformers` directly — everything goes through `sidecar_client.py` via httpx.
 
@@ -71,8 +77,9 @@ Workers **never** import `lancedb` or `sentence_transformers` directly — every
 |---|---|
 | Framework | Frappe v15+, ERPNext v15+ |
 | Python | 3.10+ |
-| Vector store | LanceDB (bench-level `rag/` dir, `v4_` table prefix) |
-| Embedding model | `multilingual-e5-small` (sentence-transformers, ~470 MB, 384 dims, Arabic+English) |
+| Vector store | LanceDB (bench-level `rag/` dir, `v5_gemini_*` or `v6_e5small_*` prefix) |
+| Embedding (default) | `gemini-embedding-001` via REST v1beta, 768-dim, cloud (Google AI Studio key) |
+| Embedding (opt-in) | `multilingual-e5-small` (sentence-transformers, ~470 MB, 384-dim, fully local) |
 | Chat LLM | `gemini-2.5-flash` (paid tier, function calling enabled) |
 | Sidecar | FastAPI + uvicorn on `localhost:8100` |
 | Frontend | Vanilla JS only |
@@ -181,8 +188,11 @@ The 2.3s DB write is a known MariaDB row lock — accepted as current floor. Gem
 
 ## 9. Future Roadmap
 
-### Phase 8.75 — v1.2 Text-to-SQL with Guardrails
-Let Gemini generate SELECT statements directly against a whitelisted schema. Safety layer: `sqlparse` validation, single-SELECT only, table allowlist, forced LIMIT, read-only DB user, permission post-filter, audit log to `Generated Query Log` DocType. Build only after v1.1 has produced data on which question shapes still fail. This is the ceiling for analytical questions.
+### Phase 7a — v1.2 Pluggable Embedding Provider (shipped 2026-04-26)
+Decoupled the hardcoded `multilingual-e5-small` model and introduced a pluggable provider system. Default is now `gemini-embedding-001` (Google cloud, 768-dim, `v5_gemini_*` tables) with opt-in `e5-small` for full local embedding (384-dim, `v6_e5small_*`). Provider is set via `EMBEDDING_PROVIDER` env var and selectable in AI Assistant Settings without code changes. Migrated from deprecated `text-embedding-004` (EOL Jan 2026) to `gemini-embedding-001`. Test matrix expanded to 50 questions: **49/50 (98%)**. One failure (CH-05: record_lookup citation missing for a specific PO) logged to backlog.
+
+### Phase 8.75 — v1.3 Text-to-SQL with Guardrails
+Let Gemini generate SELECT statements directly against a whitelisted schema. Safety layer: `sqlparse` validation, single-SELECT only, table allowlist, forced LIMIT, read-only DB user, permission post-filter, audit log to `Generated Query Log` DocType. Build only after v1.2 data reveals which question shapes still fail. This is the ceiling for analytical questions.
 
 ### Phase 9 — Files & Images
 OCR for scanned invoices, vision model for product photos, attachment content indexed alongside parent documents. Likely a second sidecar endpoint or `/embed` extension.

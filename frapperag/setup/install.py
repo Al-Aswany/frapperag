@@ -27,8 +27,81 @@ def after_migrate():
     seed_all_settings()
 
 
+def _active_provider_name() -> str:
+    """Read embedding_provider from settings, default to 'gemini'."""
+    try:
+        return frappe.get_cached_doc("AI Assistant Settings").embedding_provider or "gemini"
+    except Exception:
+        return "gemini"
+
+
+def rewrite_sidecar_env(provider: str) -> None:
+    """Re-render the Procfile and supervisor entries with the new EMBEDDING_PROVIDER.
+
+    Idempotent — replaces the existing entry rather than appending.
+    Called from AIAssistantSettings.on_update() when embedding_provider changes.
+    """
+    _rewrite_procfile_env(provider)
+    _rewrite_supervisor_env(provider)
+
+
+def _rewrite_procfile_env(provider: str) -> None:
+    try:
+        bench_path = frappe.utils.get_bench_path()
+        procfile_path = os.path.join(bench_path, "Procfile")
+        if not os.path.exists(procfile_path):
+            return
+
+        with open(procfile_path, "r") as f:
+            content = f.read()
+
+        if "rag_sidecar:" not in content:
+            return  # not yet present; _ensure_sidecar_procfile_entry will add it
+
+        app_path = os.path.join(bench_path, "apps", "frapperag", "frapperag")
+        python_bin = os.path.join(bench_path, "env", "bin", "python")
+        sidecar_script = os.path.join(app_path, "sidecar", "main.py")
+        new_entry = f"rag_sidecar: env EMBEDDING_PROVIDER={provider} {python_bin} {sidecar_script} --port 8100"
+
+        import re
+        content = re.sub(r"rag_sidecar:.*", new_entry, content)
+        with open(procfile_path, "w") as f:
+            f.write(content)
+
+        frappe.logger().info("frapperag: updated Procfile rag_sidecar EMBEDDING_PROVIDER=%s", provider)
+    except Exception as exc:
+        frappe.logger().warning("frapperag: could not rewrite Procfile: %s", exc)
+
+
+def _rewrite_supervisor_env(provider: str) -> None:
+    try:
+        bench_path = frappe.utils.get_bench_path()
+        conf_path = os.path.join(bench_path, "config", "supervisor.conf")
+        if not os.path.exists(conf_path):
+            return
+
+        with open(conf_path, "r") as f:
+            content = f.read()
+
+        if _SUPERVISOR_MARKER not in content:
+            return  # block not present yet
+
+        import re
+        content = re.sub(
+            r"(environment=EMBEDDING_PROVIDER=)[^\n]*",
+            f'\\1"{provider}"',
+            content,
+        )
+        with open(conf_path, "w") as f:
+            f.write(content)
+
+        frappe.logger().info("frapperag: updated supervisor.conf EMBEDDING_PROVIDER=%s", provider)
+    except Exception as exc:
+        frappe.logger().warning("frapperag: could not rewrite supervisor.conf: %s", exc)
+
+
 def _ensure_existing_lancedb_indices(rag_path: str) -> None:
-    """Create ANN vector indices on any v4_* LanceDB tables that already exist.
+    """Create ANN vector indices on any active-family LanceDB tables that already exist.
 
     On a fresh install this is a no-op (no tables yet).  On an upgrade where
     the DB already holds indexed data, this backfills the IVF_PQ indices so
@@ -39,7 +112,7 @@ def _ensure_existing_lancedb_indices(rag_path: str) -> None:
     try:
         db = lancedb.connect(rag_path)
         for table_name in db.table_names():
-            if not table_name.startswith("v4_"):
+            if not (table_name.startswith("v5_gemini_") or table_name.startswith("v6_e5small_")):
                 continue
             try:
                 table = db.open_table(table_name)
@@ -108,8 +181,9 @@ def _ensure_sidecar_procfile_entry() -> None:
         app_path = os.path.join(bench_path, "apps", "frapperag", "frapperag")
         python_bin = os.path.join(bench_path, "env", "bin", "python")
         sidecar_script = os.path.join(app_path, "sidecar", "main.py")
+        provider = _active_provider_name()
 
-        entry = f"\nrag_sidecar: {python_bin} {sidecar_script} --port 8100\n"
+        entry = f"\nrag_sidecar: env EMBEDDING_PROVIDER={provider} {python_bin} {sidecar_script} --port 8100\n"
         with open(procfile_path, "a") as f:
             f.write(entry)
 
@@ -161,6 +235,7 @@ def _ensure_sidecar_supervisor_entry() -> None:
         log_file = os.path.join(bench_path, "logs", "rag_sidecar.log")
         err_file = os.path.join(bench_path, "logs", "rag_sidecar.error.log")
         user = getpass.getuser()
+        provider = _active_provider_name()
 
         block = (
             f"\n{_SUPERVISOR_MARKER}\n"
@@ -176,6 +251,7 @@ def _ensure_sidecar_supervisor_entry() -> None:
             f"stderr_logfile={err_file}\n"
             f"user={user}\n"
             f"directory={bench_path}\n"
+            f'environment=EMBEDDING_PROVIDER="{provider}"\n'
         )
 
         with open(conf_path, "a") as f:

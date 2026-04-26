@@ -61,12 +61,17 @@ def run_sync_job(
             from frapperag.rag.text_converter import to_text
             text = to_text(doctype, doc.as_dict())
 
+            try:
+                _api_key = frappe.get_cached_doc("AI Assistant Settings").get_password("gemini_api_key") or None
+            except Exception:
+                _api_key = None
+
             from frapperag.rag.sidecar_client import delete_record, upsert_record, SidecarError
             try:
                 if old_name:
                     delete_record(doctype, old_name)
                 if text:
-                    upsert_record(doctype, name, text)
+                    upsert_record(doctype, name, text, api_key=_api_key)
                 frappe.db.set_value("Sync Event Log", sync_log_id, "outcome", "Success")
                 _log().info(f"[SYNC_SUCCESS] sync_log_id={sync_log_id} trigger_type=Rename")
             except SidecarError as exc:
@@ -93,9 +98,14 @@ def run_sync_job(
             frappe.db.commit()
             return
 
+        try:
+            _api_key = frappe.get_cached_doc("AI Assistant Settings").get_password("gemini_api_key") or None
+        except Exception:
+            _api_key = None
+
         from frapperag.rag.sidecar_client import upsert_record, SidecarError
         try:
-            upsert_record(doctype, name, text)
+            upsert_record(doctype, name, text, api_key=_api_key)
             frappe.db.set_value("Sync Event Log", sync_log_id, "outcome", "Success")
             _log().info(f"[SYNC_SUCCESS] sync_log_id={sync_log_id} trigger_type={trigger_type}")
         except SidecarError as exc:

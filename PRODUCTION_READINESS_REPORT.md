@@ -1,8 +1,16 @@
-# FrappeRAG v1.1 — Production Readiness Report
+# FrappeRAG v1.2 — Production Readiness Report
 
-**Date:** 2026-04-14
-**Scope:** Full app review against constitution, security, resilience, performance, install, and observability checklists.
-**Verdict:** **Ready with caveats** — 3 blockers (all fixable in a day), several warnings worth addressing before first external users.
+**Date:** 2026-04-26
+**Scope:** Full app review against constitution, security, resilience, performance, install, and observability checklists. Updated for v1.2 (Pluggable Embedding Provider).
+**Verdict:** **Ready with caveats** — 3 blockers from v1.1 review (all fixable in a day), several warnings worth addressing before first external users.
+
+### v1.2 additions
+- Embedding provider is now pluggable (`gemini` default, `e5-small` opt-in). Provider selection rewrites `Procfile`/`supervisor.conf` automatically on save.
+- Migrated from deprecated `text-embedding-004` (Google EOL Jan 2026) to `gemini-embedding-001` with `outputDimensionality=768` to preserve `v5_gemini_*` schema compatibility.
+- `v4_*` legacy tables left on disk (inert); active prefix is `v5_gemini_*` (Gemini) or `v6_e5small_*` (e5-small).
+- v2 regression matrix (50 questions): **49/50 (98%)**. One failure: CH-05 record_lookup citation missing for PUR-ORD-2026-00077 (logged to BACKLOG.md).
+
+---
 
 ---
 
