@@ -1,6 +1,6 @@
 """Background job functions for incremental vector index sync.
 
-All heavy imports (httpx, google.generativeai, etc.) MUST be inside function
+All heavy imports (httpx, Gemini SDK modules, etc.) MUST be inside function
 bodies — never at module level (Constitution Principle I).
 
 Workers MUST NOT import lancedb or sentence_transformers directly; all

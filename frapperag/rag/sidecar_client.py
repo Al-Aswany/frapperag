@@ -209,6 +209,31 @@ def upsert_record(
     _retry_call(httpx.post, url, json=payload, timeout=30.0)
 
 
+def upsert_batch(
+    records: list[dict],
+    api_key: str | None = None,
+    port: int | None = None,
+) -> None:
+    """POST /upsert_batch — embed and upsert multiple records in one sidecar call.
+
+    `records` is a list of {doctype, name, text} dicts (same keys as upsert_record).
+    The sidecar embeds all texts in a single batchEmbedContents call and writes
+    one merge_insert per table, making bulk indexing ~WRITE_BATCH_SIZE× faster
+    than calling upsert_record() per record.
+
+    Raises SidecarUnavailableError after 3 failed connection/timeout/transient attempts.
+    Raises SidecarPermanentError on 4xx client errors.
+    Raises SidecarError on other non-2xx responses.
+    """
+    import httpx
+
+    url = f"{_base_url(port)}/upsert_batch"
+    payload = {"records": records}
+    if api_key:
+        payload["api_key"] = api_key
+    _retry_call(httpx.post, url, json=payload, timeout=120.0)
+
+
 def delete_record(doctype: str, name: str, port: int | None = None) -> None:
     """DELETE /record/{table}/{record_id} — remove one vector entry.
 
@@ -233,6 +258,7 @@ def chat(
     api_key: str,
     model: str = "gemini-2.5-flash",
     tools: list | None = None,
+    google_search: dict | None = None,
     port: int | None = None,
 ) -> dict:
     """POST /chat — call Gemini via the sidecar with a pre-assembled message list.
@@ -257,6 +283,8 @@ def chat(
     payload = {"messages": messages, "api_key": api_key, "model": model}
     if tools:
         payload["tools"] = tools
+    if google_search:
+        payload["google_search"] = google_search
     response = _retry_call(httpx.post, url, json=payload, timeout=180.0)
     return response.json()
 

@@ -1,9 +1,10 @@
 """
 Seed aggregate configuration in AI Assistant Settings for the v1 test suite.
 
-Adds date_field values to existing allowed_doctypes rows (and inserts any
-missing allowed_doctypes rows) so the 'aggregate_doctype' template can execute
-for test questions: AG-03..AG-06, ST-03, ST-04, EM-01, EM-02.
+Adds date_field/default_date_field values to existing allowed_doctypes rows
+(and inserts any missing allowed_doctypes rows) so the 'aggregate_doctype'
+template can execute for test questions: AG-03..AG-06, ST-03, ST-04, EM-01,
+EM-02.
 
 Run once after bench migrate:
 
@@ -75,6 +76,7 @@ def main():
             settings.append("allowed_doctypes", {
                 "doctype_name": dt,
                 "date_field":   cfg["date_field"],
+                "default_date_field": cfg["date_field"],
             })
             allowed_map[dt] = settings.allowed_doctypes[-1]
             print(f"ADD   allowed_doctypes row: {dt} (date_field={cfg['date_field']!r})")
@@ -85,6 +87,11 @@ def main():
                 print(f"SET   {dt}.date_field = {cfg['date_field']!r}")
             else:
                 print(f"OK    {dt}.date_field already '{cfg['date_field']}'")
+            if getattr(row, "default_date_field", None) != cfg["date_field"]:
+                row.default_date_field = cfg["date_field"]
+                print(f"SET   {dt}.default_date_field = {cfg['date_field']!r}")
+            else:
+                print(f"OK    {dt}.default_date_field already '{cfg['date_field']}'")
 
     # --- Step 2: add aggregate_fields rows (skip duplicates) ---------------
     existing_agg = {

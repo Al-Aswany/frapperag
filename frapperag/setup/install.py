@@ -3,6 +3,7 @@ import frappe
 
 
 _SUPERVISOR_MARKER = "# --- frapperag rag_sidecar (managed by after_install/after_migrate) ---"
+_DEFAULT_CHAT_MODEL = "gemini-2.5-flash"
 
 
 def after_install():
@@ -12,6 +13,7 @@ def after_install():
     _ensure_sidecar_procfile_entry()
     _ensure_sidecar_supervisor_entry()
     seed_all_settings()
+    _refresh_schema_catalog_bootstrap("after_install")
     frappe.db.commit()
 
 
@@ -25,6 +27,7 @@ def after_migrate():
     _ensure_sidecar_procfile_entry()
     _ensure_sidecar_supervisor_entry()
     seed_all_settings()
+    _refresh_schema_catalog_bootstrap("after_migrate")
 
 
 def _active_provider_name() -> str:
@@ -275,6 +278,14 @@ _DEFAULT_DOCTYPES = [
     "Item Price", "Stock Entry",
 ]
 
+_DEFAULT_ALLOWED_DOCTYPE_DATE_FIELDS = {
+    "Purchase Invoice": "posting_date",
+    "Purchase Order": "transaction_date",
+    "Sales Invoice": "posting_date",
+    "Sales Order": "transaction_date",
+    "Stock Entry": "posting_date",
+}
+
 _DEFAULT_ROLES = [
     "System Manager",
     "RAG Admin",
@@ -304,6 +315,22 @@ _DEFAULT_AGGREGATE_FIELDS = [
 ]
 
 
+def _default_allowed_doctype_policy(doctype_name: str, legacy_date_field: str | None = None) -> dict:
+    date_field = legacy_date_field or _DEFAULT_ALLOWED_DOCTYPE_DATE_FIELDS.get(doctype_name)
+    return {
+        "enabled": 1,
+        "date_field": date_field,
+        "default_date_field": date_field,
+        "default_title_field": "",
+        "allow_get_list": 1,
+        "allow_query_builder": 0,
+        "allow_child_tables": 0,
+        "default_sort": "modified desc",
+        "default_limit": 20,
+        "large_table_requires_date_filter": 0,
+    }
+
+
 def seed_all_settings() -> None:
     """Idempotently configure AI Assistant Settings with production defaults.
 
@@ -316,6 +343,7 @@ def seed_all_settings() -> None:
 
     settings = frappe.get_single("AI Assistant Settings")
     changed = False
+    changed_single_values = False
 
     # --- Enable + sidecar port ---
     if not settings.is_enabled:
@@ -326,6 +354,23 @@ def seed_all_settings() -> None:
         settings.sidecar_port = 8100
         changed = True
 
+    if not getattr(settings, "chat_model", None):
+        settings.chat_model = _DEFAULT_CHAT_MODEL
+        changed = True
+
+    if getattr(settings, "enable_chat_google_search", None) in (None, ""):
+        settings.enable_chat_google_search = 0
+        changed = True
+
+    if not frappe.db.get_single_value("AI Assistant Settings", "assistant_mode"):
+        frappe.db.set_single_value(
+            "AI Assistant Settings",
+            "assistant_mode",
+            "v1",
+            update_modified=False,
+        )
+        changed_single_values = True
+
     # --- Allowed DocTypes ---
     existing_doctypes = {
         getattr(row, "doctype_name", None) or getattr(row, "document_type", None)
@@ -334,7 +379,22 @@ def seed_all_settings() -> None:
     existing_doctypes.discard(None)
     for dt in _DEFAULT_DOCTYPES:
         if dt not in existing_doctypes:
-            settings.append("allowed_doctypes", {"doctype_name": dt})
+            settings.append(
+                "allowed_doctypes",
+                {"doctype_name": dt, **_default_allowed_doctype_policy(dt)},
+            )
+            changed = True
+
+    for row in (settings.allowed_doctypes or []):
+        defaults = _default_allowed_doctype_policy(
+            row.doctype_name,
+            legacy_date_field=(getattr(row, "date_field", None) or None),
+        )
+        for fieldname, value in defaults.items():
+            current_value = getattr(row, fieldname, None)
+            if current_value not in (None, ""):
+                continue
+            setattr(row, fieldname, value)
             changed = True
 
     # --- Allowed Roles ---
@@ -369,7 +429,43 @@ def seed_all_settings() -> None:
         settings.flags.ignore_links = True
         settings.save(ignore_permissions=True)
         frappe.db.commit()
+    elif changed_single_values:
+        frappe.clear_document_cache("AI Assistant Settings", "AI Assistant Settings")
+        frappe.db.commit()
 
 
 # Keep backward-compatible alias for the after_migrate hook
 seed_allowed_doctypes = seed_all_settings
+
+
+def _refresh_schema_catalog_bootstrap(reason: str) -> None:
+    try:
+        from frapperag.assistant.schema_refresh import enqueue_schema_catalog_refresh
+
+        result = enqueue_schema_catalog_refresh(reason=reason, requested_by="System")
+        message = "schema catalog bootstrap enqueue result: site=%s reason=%s queued=%s status=%s"
+        args = (
+            frappe.local.site,
+            reason,
+            result.get("queued"),
+            result.get("status"),
+        )
+        frappe.logger("frapperag", allow_site=True).info(
+            message,
+            *args,
+        )
+        frappe.logger().info(
+            "frapperag: " + message,
+            *args,
+        )
+    except Exception as exc:
+        message = "schema catalog bootstrap enqueue failed: site=%s reason=%s error=%s"
+        args = (frappe.local.site, reason, exc)
+        frappe.logger("frapperag", allow_site=True).warning(
+            message,
+            *args,
+        )
+        frappe.logger().warning(
+            "frapperag: " + message,
+            *args,
+        )

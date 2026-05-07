@@ -15,7 +15,7 @@ dependencies = [
     "fastapi",
     "uvicorn",
     "httpx",
-    "google-generativeai",
+    "google-genai",
 ]
 
 [build-system]

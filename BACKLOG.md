@@ -1,5 +1,23 @@
 Backlog
 
+## Phase 1A follow-ups
+
+- **P1A-03 Permission verification complete**
+  - **Requirement:** `frapperag.api.settings.refresh_schema_catalog` must be restricted to `System Manager` or `RAG Admin`.
+  - **Verified on 2026-05-07:** real authenticated API-session test through `/api/method/frapperag.api.settings.refresh_schema_catalog`.
+  - **Result:** `System Manager` passed (`200`), `RAG Admin` passed (`200`), `RAG User` without admin role failed (`403` `frappe.PermissionError`), Guest/unauthenticated failed (`403` before method execution).
+
+- **P1A-08 Log visibility still unresolved**
+  - **Requirement:** clear schema refresh success/failure logging.
+  - **Verified on 2026-05-07:** a synchronous `refresh_schema_catalog(reason="manual-verification")` completed successfully, but the expected success/info markers were still not observable in `logs/frappe.log`, `logs/worker.log`, or `sites/golive.site1/logs/frappe.log`; `sites/golive.site1/logs/worker.log` does not exist on this deployment.
+  - **Status:** unresolved. The code logs via `frappe.logger("frapperag", allow_site=True)` and `frappe.logger()`, but on this deployment the success-path refresh messages are not visible in the expected standard bench/site log files during verification.
+
+---
+
+## Phase 2 guardrails
+
+- Never pass full schema catalog to Gemini; retrieve only relevant enabled/queryable schema slices.
+
 ## CH-05 record_lookup citation missing for PUR-ORD-2026-00077 (v1.2)
 
 - **Question:** (citation_hygiene category — asks about a specific Purchase Order by number)

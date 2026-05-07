@@ -6,7 +6,16 @@
  "engine": "InnoDB",
  "field_order": [
   "doctype_name",
-  "date_field"
+  "enabled",
+  "date_field",
+  "default_date_field",
+  "default_title_field",
+  "allow_get_list",
+  "allow_query_builder",
+  "allow_child_tables",
+  "default_sort",
+  "default_limit",
+  "large_table_requires_date_filter"
  ],
  "fields": [
   {
@@ -18,11 +27,69 @@
    "reqd": 1
   },
   {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Enabled"
+  },
+  {
    "fieldname": "date_field",
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Date Field",
-   "description": "Field used for from_date/to_date filtering (e.g. posting_date). Leave blank to disallow date filters."
+   "description": "Field used by current v1 aggregate queries for from_date/to_date filtering (for example posting_date). Leave blank to disallow date filters."
+  },
+  {
+   "fieldname": "default_date_field",
+   "fieldtype": "Data",
+   "label": "Default Date Field",
+   "description": "Preferred v2 date field for safe schema/query planning. Falls back to Date Field when blank."
+  },
+  {
+   "fieldname": "default_title_field",
+   "fieldtype": "Data",
+   "label": "Default Title Field",
+   "description": "Optional human-readable title field for future answer composition."
+  },
+  {
+   "default": "1",
+   "fieldname": "allow_get_list",
+   "fieldtype": "Check",
+   "label": "Allow Get List"
+  },
+  {
+   "default": "0",
+   "fieldname": "allow_query_builder",
+   "fieldtype": "Check",
+   "label": "Allow Query Builder"
+  },
+  {
+   "default": "0",
+   "fieldname": "allow_child_tables",
+   "fieldtype": "Check",
+   "label": "Allow Child Tables"
+  },
+  {
+   "default": "modified desc",
+   "fieldname": "default_sort",
+   "fieldtype": "Data",
+   "label": "Default Sort",
+   "description": "Future safe default sort in the form fieldname asc|desc."
+  },
+  {
+   "default": "20",
+   "fieldname": "default_limit",
+   "fieldtype": "Int",
+   "label": "Default Limit",
+   "description": "Future safe default row cap for this DocType."
+  },
+  {
+   "default": "0",
+   "fieldname": "large_table_requires_date_filter",
+   "fieldtype": "Check",
+   "label": "Large Table Requires Date Filter",
+   "description": "Future guardrail for high-volume DocTypes."
   }
  ],
  "index_web_pages_for_search": 0,

@@ -8,7 +8,7 @@ A Retrieval-Augmented Generation (RAG) assistant for Frappe / ERPNext. FrappeRAG
 - **Vector store** — LanceDB, stored in a bench-level `rag/` directory; table prefix `v5_gemini_` or `v6_e5small_` depending on the active provider.
 - **Incremental sync** — Frappe `doc_events` hooks (`on_update`, `after_rename`, `on_trash`) automatically keep the vector index in sync with every save, rename, or delete for whitelisted DocTypes.
 - **Bulk indexing** — RAG Index Manager page lets RAG Admins trigger a full re-index of any whitelisted DocType (or all at once), with real-time progress updates via `frappe.realtime`.
-- **Chat interface** — Vanilla JS chat page (`/rag-chat`) backed by Google Gemini 2.5 Flash with multi-turn conversation history and per-source citations.
+- **Chat interface** — Vanilla JS chat page (`/rag-chat`) backed by a configurable Gemini chat model (default: `gemini-2.5-flash`) with multi-turn conversation history and per-source citations.
 - **Report execution** — Gemini can call whitelisted Report Builder reports as tools; results are rendered as formatted tables inside the chat thread with a 50-row cap.
 - **Query execution** — Predefined SQL templates for common analytics (top selling items, best-selling pairs, low stock, customer/supplier activity, inventory status, pending orders). Gemini selects the right template and passes validated parameters; results are returned as structured citations.
 - **Permission-aware retrieval** — every candidate record is filtered through `frappe.has_permission` before it can be included in a prompt or a chat response.
@@ -32,7 +32,7 @@ RAG Sidecar  ── FastAPI + uvicorn ──  LanceDB (bench-level rag/)
   /embed          → Gemini cloud OR local e5-small (selectable via EMBEDDING_PROVIDER)
   /upsert         → writes to v5_gemini_* or v6_e5small_* tables
   /search         → queries active-prefix tables
-  /chat           google-generativeai (Gemini 2.5 Flash)
+  /chat           google-genai runtime (default chat model: Gemini 2.5 Flash)
   /record/:id DELETE
   /table/:name DELETE
   /tables/populated GET
@@ -54,8 +54,15 @@ apps/frapperag/frapperag/
 ├── sidecar/
 │   ├── main.py                     # FastAPI app — /embed /upsert /search /chat /record /table
 │   └── store.py                    # LanceDB open/upsert/search/delete helpers
+├── assistant/
+│   ├── planner.py                  # Phase 3 manual planner scaffolding for safe get_list plans
+│   ├── plan_validator.py           # Policy-backed validation for DocTypes, fields, filters, sort, and limits
+│   ├── tool_call_log.py            # Execution log helper for planner/validator/executor runs
+│   └── executors/
+│       └── get_list_executor.py    # Read-only get_list executor for validated plans only
 ├── frapperag/doctype/
 │   ├── ai_assistant_settings/      # Single DocType — API key, whitelist, roles, sidecar port
+│   ├── ai_tool_call_log/           # Audit log for Phase 3 planner / validator / executor activity
 │   ├── rag_allowed_doctype/        # Child table — whitelisted DocTypes
 │   ├── rag_allowed_role/           # Child table — roles allowed to chat
 │   ├── rag_allowed_report/         # Child table — whitelisted Report Builder reports
@@ -100,7 +107,7 @@ apps/frapperag/frapperag/
 | fastapi | >= 0.110.0 |
 | uvicorn | >= 0.29.0 |
 | httpx | >= 0.27.0 |
-| google-generativeai | >= 0.8.0 |
+| google-genai | >= 1.0.0 |
 
 ## Installation
 
@@ -135,7 +142,133 @@ bench --site <site> migrate
 4. Add the roles that may use the chat to **Allowed Roles** (default: `RAG User`).
 5. Optionally whitelist **Report Builder** reports in **Allowed Reports** (see Report Execution below).
 6. Optionally configure **Aggregate Fields** for custom query analytics (see Query Execution below).
-7. Optionally adjust **Sidecar Port** (default: `8100`).
+7. Optionally change **Chat Model**. Leave the default `gemini-2.5-flash` for stable v1 behavior, or set `gemini-3-flash-preview` / `gemini-3.1-flash-lite-preview` for manual runtime testing.
+8. Optionally enable **Google Search Grounding**. It is disabled by default and is reserved for future routed intents such as `out_of_scope`, `erpnext_help`, or explicit current-info/web questions.
+9. Optionally adjust **Sidecar Port** (default: `8100`).
+
+## Phase 2.5 Runtime Upgrade
+
+Phase 2.5 upgrades only the Gemini runtime layer. While **Assistant Mode** stays `v1`, the existing chat contract, chat UI behavior, retriever flow, report/query tool execution, and answer path remain unchanged.
+
+- Sidecar `/chat` now uses the `google-genai` SDK instead of `google-generativeai`.
+- The chat model is configurable through **AI Assistant Settings → Chat Model** and defaults to `gemini-2.5-flash`.
+- Preview models such as `gemini-3-flash-preview` and `gemini-3.1-flash-lite-preview` are supported by setting the model name directly.
+- Google Search grounding support is installed behind **Enable Google Search Grounding**, but stays disabled by default and is not used by the current v1 chat path.
+- Google Search is restricted to future routed intents only and is blocked when ERP context is present, so ERP data is never passed to Google Search.
+
+### Manual verification commands
+
+```bash
+bench --site golive.site1 migrate
+bench --site golive.site1 execute frapperag.rag.chat_engine.debug_chat_runtime_settings
+bench --site golive.site1 execute frapperag.rag.chat_engine.debug_chat_runtime_settings --kwargs "{'intent': 'erpnext_help'}"
+bench --site golive.site1 execute frapperag.rag.chat_engine.debug_chat_runtime_settings --kwargs "{'intent': 'erpnext_help', 'has_erp_context': 1}"
+bench --site golive.site1 execute frapperag.rag.sidecar_client.health_check
+```
+
+Manual checks:
+
+1. In **AI Assistant Settings**, confirm `Assistant Mode = v1`.
+2. Leave `Chat Model = gemini-2.5-flash`, send a normal message through `/rag-chat`, and confirm the v1 response path still works.
+3. Change `Chat Model` to `gemini-3-flash-preview`, save, rerun `debug_chat_runtime_settings`, and repeat the same v1 chat smoke test.
+4. Change `Chat Model` to `gemini-3.1-flash-lite-preview`, save, rerun `debug_chat_runtime_settings`, and repeat the same v1 chat smoke test.
+5. Enable **Google Search Grounding**, save, and rerun the debug command. It should report `google_search_would_be_used = true` only for an allowed intent without ERP context, and `false` when `has_erp_context = 1`.
+
+## Phase 1B Foundation
+
+Phase 1B adds non-behavioral v2 foundation only. While **Assistant Mode** stays `v1`, the current chat pipeline, routing, planner/executor behavior, and sidecar `/chat` flow remain unchanged.
+
+- `RAG Allowed DocType` now carries future query-policy fields such as `enabled`, `default_date_field`, `default_title_field`, `allow_get_list`, `allow_query_builder`, `allow_child_tables`, `default_sort`, `default_limit`, and `large_table_requires_date_filter`.
+- `enabled` is intentionally the new query-policy field for safe schema exposure. While `assistant_mode = v1`, legacy v1 indexing, sync, aggregate-query, and chat allowlisting still key off `allowed_doctypes` row presence plus `doctype_name`, not `enabled`.
+- Safe schema-slice helpers live in `frapperag.assistant.schema_policy` and expose only enabled DocTypes plus safe-by-default fields. Hidden, password, attachment, table, code/html, long-text, and sensitive-name fields are excluded unless explicitly requested for inspection.
+
+### Manual verification commands
+
+```bash
+bench --site golive.site1 migrate
+bench --site golive.site1 execute frapperag.assistant.schema_refresh.refresh_schema_catalog --kwargs "{'reason': 'phase_1b_manual', 'requested_by': 'Administrator', 'throw': 1}"
+bench --site golive.site1 execute frapperag.assistant.schema_policy.debug_query_policy_snapshot
+bench --site golive.site1 execute frapperag.assistant.schema_policy.debug_safe_schema_slice --kwargs "{'doctype_names': 'Sales Invoice,Customer'}"
+bench --site golive.site1 execute frapperag.assistant.schema_policy.debug_safe_schema_slice --kwargs "{'doctype_names': 'Sales Invoice', 'include_unsafe_fields': 1}"
+```
+
+## Phase 2 Shadow Routing
+
+Phase 2 adds shadow-only intent routing. While **Assistant Mode** stays `v1`, chat answers, chat UI, retriever behavior, tool execution, and the existing Gemini `/chat` path remain unchanged.
+
+- Added `frapperag.assistant.intent_router` with seven route classes: `structured_query`, `erpnext_help`, `document_rag`, `report_query`, `mixed_query`, `out_of_scope`, and `unclear`.
+- Routing is deterministic first. Optional Gemini fallback is available only through the router function and only uses bounded safe schema slices from `frapperag.assistant.schema_policy` plus allowed report snippets. The full schema catalog is never passed to Gemini. The chat worker keeps `use_llm_fallback=False` for the shadow hook unless you opt in manually.
+- `frapperag.rag.chat_runner.run_chat_job()` now runs the router in shadow mode and logs the decision only. Router failures are swallowed so the v1 chat path continues unchanged.
+- Shadow logs include: question, selected intent, confidence, reason, candidate DocTypes, candidate reports, router source, and shadow-only status.
+
+### Manual verification commands
+
+```bash
+bench --site golive.site1 execute frapperag.assistant.intent_router.debug_route_question --kwargs "{'question': 'How many overdue Sales Invoices do I have?'}"
+bench --site golive.site1 execute frapperag.assistant.intent_router.debug_route_question --kwargs "{'question': 'How do I submit a Sales Invoice?'}"
+bench --site golive.site1 execute frapperag.assistant.intent_router.debug_route_question --kwargs "{'question': 'Summarize the leave policy PDF'}"
+bench --site golive.site1 execute frapperag.assistant.intent_router.debug_route_question --kwargs "{'question': 'Which Accounts Receivable report should I run?', 'use_llm_fallback': 1}"
+tail -n 20 logs/frapperag.log | rg ROUTER_SHADOW
+```
+
+Send a normal chat message through the existing v1 UI or API to exercise the shadow hook in `run_chat_job()`. The response path stays unchanged; only an additional `ROUTER_SHADOW` log line is emitted.
+
+## Phase 3 Foundation
+
+Phase 3 is implemented as a manual-only foundation. While **Assistant Mode** stays `v1`, normal chat answers, final Gemini responses, sidecar `/chat`, Google Search usage, and the existing v1 tool path remain unchanged.
+
+- Added `frapperag.assistant.planner` for structured `get_list` plan scaffolding.
+- Added `frapperag.assistant.plan_validator` to enforce enabled/queryable DocTypes, safe fields, allowed filters, allowed sort fields, row limits, and large-table date-filter requirements.
+- Added `frapperag.assistant.executors.get_list_executor` for read-only `frappe.get_list` execution using validated plans only.
+- Added `AI Tool Call Log` plus `frapperag.assistant.tool_call_log` for planner/validator/executor audit records.
+- Explicitly not added to normal chat in this phase: v2 routing, answer composition, write actions, Google Search grounding, raw SQL execution, Query Builder joins, or any change to `assistant_mode = v1`.
+
+### Manual verification commands
+
+```bash
+bench --site golive.site1 migrate
+bench --site golive.site1 execute frapperag.assistant.plan_validator.debug_describe_queryable_doctype --kwargs "{'doctype': 'Sales Invoice'}"
+bench --site golive.site1 execute frapperag.assistant.planner.debug_create_get_list_plan --kwargs "{'question': 'List recent sales invoices', 'doctype': 'Sales Invoice', 'fields_json': '[\"name\", \"customer\", \"posting_date\", \"grand_total\", \"status\"]', 'filters_json': '[{\"field\": \"posting_date\", \"operator\": \">=\", \"value\": \"2026-01-01\"}]', 'order_by_json': '{\"field\": \"posting_date\", \"direction\": \"desc\"}', 'limit': 10}"
+bench --site golive.site1 execute frapperag.assistant.plan_validator.debug_build_and_validate_get_list_plan --kwargs "{'question': 'List recent sales invoices', 'doctype': 'Sales Invoice', 'fields_json': '[\"name\", \"customer\", \"posting_date\", \"grand_total\", \"status\"]', 'filters_json': '[{\"field\": \"posting_date\", \"operator\": \">=\", \"value\": \"2026-01-01\"}]', 'order_by_json': '{\"field\": \"posting_date\", \"direction\": \"desc\"}', 'limit': 10}"
+bench --site golive.site1 execute frapperag.assistant.executors.get_list_executor.debug_build_validate_and_execute_get_list_plan --kwargs "{'question': 'List recent sales invoices', 'doctype': 'Sales Invoice', 'fields_json': '[\"name\", \"customer\", \"posting_date\", \"grand_total\", \"status\"]', 'filters_json': '[{\"field\": \"posting_date\", \"operator\": \">=\", \"value\": \"2026-01-01\"}]', 'order_by_json': '{\"field\": \"posting_date\", \"direction\": \"desc\"}', 'limit': 10}"
+bench --site golive.site1 execute frapperag.assistant.plan_validator.debug_build_and_validate_get_list_plan --kwargs "{'question': 'Try a disabled DocType', 'doctype': 'User', 'fields_json': '[\"name\"]', 'limit': 5}"
+bench --site golive.site1 execute frapperag.assistant.tool_call_log.debug_get_recent_tool_logs --kwargs "{'limit': 10}"
+```
+
+Manual checks:
+
+1. Confirm `AI Assistant Settings.assistant_mode` is still `v1` before and after the Phase 3 commands.
+2. Use `debug_describe_queryable_doctype` or `debug_safe_schema_slice(... include_unsafe_fields=1)` to identify an unsafe field, then run `debug_build_and_validate_get_list_plan` with that field and confirm validation is rejected.
+3. Set `large_table_requires_date_filter = 1` for a test DocType that has `default_date_field`, omit the date filter in the validation command, and confirm the plan is rejected.
+4. Send a normal message through the existing `/rag-chat` UI after Phase 3 verification and confirm the chat still follows the unchanged v1 path.
+
+## Phase 4 Controlled Hybrid Chat
+
+Phase 4 connects the Phase 2 router and the Phase 3 `get_list` planner/validator/executor to chat only when **Assistant Mode** is set to `hybrid`. The default remains `v1`, and the existing v1 chat path remains unchanged in `v1` mode.
+
+- Added `frapperag.assistant.chat_orchestrator` for the hybrid-only route → plan → validate → execute → compose flow.
+- Added `frapperag.assistant.answer_composer` for a small grounded answer over validated `get_list` results.
+- `frapperag.rag.chat_runner.run_chat_job()` still emits `ROUTER_SHADOW` in all modes, but it attempts the hybrid path only when `assistant_mode = hybrid`.
+- Hybrid chat only handles safe `structured_query` routes with enough router confidence and a single supported `get_list` step.
+- Hybrid chat falls back to the unchanged v1 path for non-structured questions, low-confidence routes, unsupported plans, validation rejection, executor/composer failure, and unexpected hybrid errors.
+- Successful and rejected hybrid tool calls are logged in `AI Tool Call Log` with `assistant_mode = hybrid`.
+- Still not introduced in this phase: Google Search grounding, raw SQL, Query Builder joins, write actions, unsafe field exposure, full schema-catalog prompts, or Phase 5 vector-index cleanup.
+
+### Verification notes
+
+If you change `RAG Allowed DocType` child-row policy values directly during verification, clear the cached singleton before testing live hybrid behavior:
+
+```bash
+bench --site golive.site1 execute frappe.clear_document_cache --args '["AI Assistant Settings", "AI Assistant Settings"]'
+```
+
+Suggested checks:
+
+1. Leave `assistant_mode = v1`, send a normal `/rag-chat` message, and confirm the existing v1 response path still works with no Phase 3 tool usage.
+2. Switch to `assistant_mode = hybrid`, send one simple structured query such as `List the 5 most recent Sales Invoices since 2026-01-01`, and confirm the answer is produced from live `get_list`.
+3. Review `AI Tool Call Log` and confirm successful hybrid entries such as `planner.plan_structured_query`, `validator.validate_plan`, `executor.get_list.execute_validated_plan`, and `composer.compose_structured_answer` show `assistant_mode = hybrid`.
+4. Send an unsupported or unclear query in `hybrid` mode and confirm chat safely falls back to the normal v1 answer path.
+5. Switch back to `assistant_mode = v1` and confirm the unchanged v1 behavior returns immediately without hybrid tool activity.
 
 ## Running
 
@@ -178,7 +311,7 @@ The pipeline per message:
 3. Filter by `frappe.has_permission` for the calling user.
 4. Load the last 10 conversation turns.
 5. Build the Gemini message list (system context + history + retrieved snippets + question).
-6. Call sidecar `/chat` → Gemini 2.5 Flash.
+6. Call sidecar `/chat` → configured Gemini chat model (default: `gemini-2.5-flash`).
 7. Save user message (Completed) and assistant reply to `Chat Message`.
 8. Publish `rag_chat_response` realtime event.
 
@@ -219,7 +352,7 @@ The sidecar runs on `localhost` only and is not exposed to the internet.
 | `/embed` | POST | Embed a list of texts using the active provider |
 | `/upsert` | POST | Embed and upsert one record into its active-prefix table |
 | `/search` | POST | Embed a query and search all active-prefix tables |
-| `/chat` | POST | Call Gemini with a conversation history |
+| `/chat` | POST | Call Gemini with a conversation history; request contract remains compatible, with optional Google Search grounding reserved for future routed intents |
 | `/record/{table}/{record_id}` | DELETE | Remove one vector entry (idempotent) |
 | `/table/{table}` | DELETE | Drop an entire LanceDB table (idempotent) |
 | `/tables/populated` | GET | List populated tables under a prefix |

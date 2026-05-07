@@ -140,7 +140,7 @@ def run_indexing_job(indexing_job_id: str, doctype: str, user: str, **kwargs):
     job_id = indexing_job_id
     from frapperag.rag.text_converter import to_text
     from frapperag.rag.sidecar_client import (
-        upsert_record, SidecarError, SidecarUnavailableError, SidecarPermanentError
+        upsert_batch, SidecarError, SidecarUnavailableError, SidecarPermanentError
     )
 
     _log().info(f"[JOB_START] job_id={job_id} doctype={doctype} user={user}")
@@ -179,84 +179,91 @@ def run_indexing_job(indexing_job_id: str, doctype: str, user: str, **kwargs):
         job.save(ignore_permissions=True)
         frappe.db.commit()
 
-        batch_count = 0  # track records processed since last progress update
+        pending: list[dict] = []  # records accumulating for the next upsert_batch call
+        batch_count = 0           # outer loop iterations since last progress update
 
         for idx, rec in enumerate(name_list):
+            is_last = idx == len(name_list) - 1
+
             # Per-record permission check (Principle III): skipped ≠ failed
             if not frappe.has_permission(
                 doctype, doc=rec["name"], ptype="read", user=user
             ):
                 job.skipped_records += 1
-                batch_count += 1
-                continue
-
-            # Full doc (with child tables) only for Sales Invoice
-            if doctype in GET_DOC_DOCTYPES:
-                doc_data = frappe.get_doc(doctype, rec["name"]).as_dict()
             else:
-                doc_data = rec
+                # Full doc (with child tables) only for complex DocTypes
+                if doctype in GET_DOC_DOCTYPES:
+                    try:
+                        doc_data = frappe.get_doc(doctype, rec["name"]).as_dict()
+                    except (frappe.DoesNotExistError, ImportError, ModuleNotFoundError, AttributeError) as e:
+                        # Skip records with missing modules/child doctypes (FR-020)
+                        job.skipped_records += 1
+                        _log().warning(f"Skipped {doctype} {rec['name']}: {e.__class__.__name__}: {str(e)}")
+                        continue
+                else:
+                    doc_data = rec
 
-            text = to_text(doctype, doc_data)
-            if text is None:
-                job.skipped_records += 1
-                batch_count += 1
-                continue
-
-            try:
-                # Embed + upsert via sidecar — single HTTP call per record.
-                upsert_record(doctype, rec["name"], text, api_key=api_key)
-                job.processed_records += 1
-
-            except SidecarUnavailableError as exc:
-                # Transient errors exhausted all retries — abort immediately.
-                job.status         = "Failed"
-                job.error_detail   = str(exc)
-                job.failure_reason = "Sidecar unavailable"
-                job.end_time       = now_datetime()
-                job.save(ignore_permissions=True)
-                frappe.db.commit()
-                _publish(job, user, error=str(exc))
-                _log().warning(f"[JOB_FAIL] job_id={job_id} failure_reason=Sidecar unavailable")
-                return
-
-            except SidecarPermanentError as exc:
-                # Permanent 4xx client error — abort immediately.
-                sc_suffix = f" (HTTP {exc.status_code})" if exc.status_code else ""
-                failure_reason = f"Sidecar error{sc_suffix}"[:140]
-                job.status         = "Failed"
-                job.error_detail   = str(exc)
-                job.failure_reason = failure_reason
-                job.end_time       = now_datetime()
-                job.save(ignore_permissions=True)
-                frappe.db.commit()
-                _publish(job, user, error=str(exc))
-                _log().warning(f"[JOB_FAIL] job_id={job_id} failure_reason={failure_reason}")
-                return
-
-            except SidecarError as exc:
-                # Other non-2xx sidecar response — abort immediately.
-                job.status         = "Failed"
-                job.error_detail   = str(exc)
-                job.failure_reason = "Sidecar unavailable"
-                job.end_time       = now_datetime()
-                job.save(ignore_permissions=True)
-                frappe.db.commit()
-                _publish(job, user, error=str(exc))
-                _log().warning(f"[JOB_FAIL] job_id={job_id} failure_reason=Sidecar unavailable")
-                return
-
-            except Exception as exc:
-                # Soft per-record failure — count as failed and continue (FR-015).
-                job.failed_records += 1
-                job.error_detail = (
-                    (job.error_detail or "")
-                    + f"\nRecord {rec['name']}: {exc}"
-                )
+                text = to_text(doctype, doc_data)
+                if text is None:
+                    job.skipped_records += 1
+                else:
+                    pending.append({"doctype": doctype, "name": rec["name"], "text": text})
 
             batch_count += 1
 
-            # Progress update after each batch (FR-014)
-            if batch_count >= WRITE_BATCH_SIZE or (idx == len(name_list) - 1):
+            # Flush the pending batch when full or at end of list (FR-014)
+            if pending and (len(pending) >= WRITE_BATCH_SIZE or is_last):
+                try:
+                    upsert_batch(pending, api_key=api_key)
+                    job.processed_records += len(pending)
+
+                except SidecarUnavailableError as exc:
+                    job.status         = "Failed"
+                    job.error_detail   = str(exc)
+                    job.failure_reason = "Sidecar unavailable"
+                    job.end_time       = now_datetime()
+                    job.save(ignore_permissions=True)
+                    frappe.db.commit()
+                    _publish(job, user, error=str(exc))
+                    _log().warning(f"[JOB_FAIL] job_id={job_id} failure_reason=Sidecar unavailable")
+                    return
+
+                except SidecarPermanentError as exc:
+                    sc_suffix = f" (HTTP {exc.status_code})" if exc.status_code else ""
+                    failure_reason = f"Sidecar error{sc_suffix}"[:140]
+                    job.status         = "Failed"
+                    job.error_detail   = str(exc)
+                    job.failure_reason = failure_reason
+                    job.end_time       = now_datetime()
+                    job.save(ignore_permissions=True)
+                    frappe.db.commit()
+                    _publish(job, user, error=str(exc))
+                    _log().warning(f"[JOB_FAIL] job_id={job_id} failure_reason={failure_reason}")
+                    return
+
+                except SidecarError as exc:
+                    job.status         = "Failed"
+                    job.error_detail   = str(exc)
+                    job.failure_reason = "Sidecar unavailable"
+                    job.end_time       = now_datetime()
+                    job.save(ignore_permissions=True)
+                    frappe.db.commit()
+                    _publish(job, user, error=str(exc))
+                    _log().warning(f"[JOB_FAIL] job_id={job_id} failure_reason=Sidecar unavailable")
+                    return
+
+                except Exception as exc:
+                    # Soft per-batch failure — count all records as failed and continue (FR-015).
+                    job.failed_records += len(pending)
+                    job.error_detail = (
+                        (job.error_detail or "")
+                        + f"\nBatch ending at {rec['name']}: {exc}"
+                    )
+
+                pending = []
+
+            # Progress update every WRITE_BATCH_SIZE outer iterations or at end (FR-014)
+            if batch_count >= WRITE_BATCH_SIZE or is_last:
                 done  = job.processed_records + job.skipped_records + job.failed_records
                 total = job.total_records or 1
                 job.progress_percent     = round((done / total) * 100, 1)

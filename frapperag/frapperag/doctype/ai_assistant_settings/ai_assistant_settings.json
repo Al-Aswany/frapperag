@@ -6,7 +6,10 @@
  "engine": "InnoDB",
  "field_order": [
   "is_enabled",
+  "assistant_mode",
   "gemini_api_key",
+  "chat_model",
+  "enable_chat_google_search",
   "sync_schedule",
   "section_doctypes",
   "allowed_doctypes",
@@ -19,6 +22,18 @@
   "section_sidecar",
   "sidecar_port",
   "embedding_provider",
+  "section_schema_catalog",
+  "schema_catalog_status",
+  "schema_catalog_refreshed_on",
+  "schema_catalog_refreshed_by",
+  "schema_catalog_last_reason",
+  "schema_catalog_doctype_count",
+  "schema_catalog_report_count",
+  "schema_catalog_workflow_count",
+  "schema_catalog_bytes",
+  "schema_catalog_last_error",
+  "schema_catalog_digest",
+  "schema_catalog_path",
   "section_sync_health",
   "sync_health_html"
  ],
@@ -30,10 +45,31 @@
    "label": "Enabled"
   },
   {
+   "default": "v1",
+   "fieldname": "assistant_mode",
+   "fieldtype": "Select",
+   "label": "Assistant Mode",
+   "options": "v1\nhybrid\nv2"
+  },
+  {
    "fieldname": "gemini_api_key",
    "fieldtype": "Password",
    "label": "Gemini API Key",
    "reqd": 1
+  },
+  {
+   "default": "gemini-2.5-flash",
+   "description": "Chat generation model for the v1 runtime. Keep the stable default unless you are manually testing another model such as gemini-3-flash-preview or gemini-3.1-flash-lite-preview.",
+   "fieldname": "chat_model",
+   "fieldtype": "Data",
+   "label": "Chat Model"
+  },
+  {
+   "default": "0",
+   "description": "Disabled by default. Installs Google Search grounding support for future routed intents only (out_of_scope, erpnext_help, web_current_info). Current v1 chat does not enable it automatically, and ERP context is never sent to Google Search.",
+   "fieldname": "enable_chat_google_search",
+   "fieldtype": "Check",
+   "label": "Enable Google Search Grounding"
   },
   {
    "fieldname": "sync_schedule",
@@ -103,6 +139,82 @@
    "fieldtype": "Select",
    "label": "Embedding Provider",
    "options": "gemini\ne5-small"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_schema_catalog",
+   "fieldtype": "Section Break",
+   "label": "Schema Catalog"
+  },
+  {
+   "default": "Not Refreshed",
+   "fieldname": "schema_catalog_status",
+   "fieldtype": "Select",
+   "label": "Catalog Status",
+   "options": "Not Refreshed\nQueued\nRunning\nReady\nFailed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "schema_catalog_refreshed_on",
+   "fieldtype": "Datetime",
+   "label": "Last Refreshed On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "schema_catalog_refreshed_by",
+   "fieldtype": "Data",
+   "label": "Last Refreshed By",
+   "read_only": 1
+  },
+  {
+   "fieldname": "schema_catalog_last_reason",
+   "fieldtype": "Data",
+   "label": "Last Refresh Reason",
+   "read_only": 1
+  },
+  {
+   "fieldname": "schema_catalog_doctype_count",
+   "fieldtype": "Int",
+   "label": "DocTypes",
+   "read_only": 1
+  },
+  {
+   "fieldname": "schema_catalog_report_count",
+   "fieldtype": "Int",
+   "label": "Reports",
+   "read_only": 1
+  },
+  {
+   "fieldname": "schema_catalog_workflow_count",
+   "fieldtype": "Int",
+   "label": "Workflows",
+   "read_only": 1
+  },
+  {
+   "fieldname": "schema_catalog_bytes",
+   "fieldtype": "Int",
+   "label": "Catalog Size (Bytes)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "schema_catalog_last_error",
+   "fieldtype": "Small Text",
+   "label": "Last Refresh Error",
+   "read_only": 1
+  },
+  {
+   "fieldname": "schema_catalog_digest",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Catalog Digest",
+   "read_only": 1
+  },
+  {
+   "fieldname": "schema_catalog_path",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Catalog Path",
+   "read_only": 1
   },
   {
    "collapsible": 1,

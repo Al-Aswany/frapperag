@@ -5,6 +5,8 @@ from frappe.model.document import Document
 
 class AIAssistantSettings(Document):
     def validate(self):
+        self.chat_model = (self.chat_model or "").strip() or "gemini-2.5-flash"
+
         # T022: strict blocking check — must run before any early return
         if self.is_enabled and not self.gemini_api_key:
             frappe.throw(_("Gemini API key is required when the assistant is enabled."))

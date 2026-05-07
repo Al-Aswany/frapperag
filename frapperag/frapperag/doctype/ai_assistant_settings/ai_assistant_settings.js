@@ -5,6 +5,7 @@
 frappe.ui.form.on("AI Assistant Settings", {
     refresh(frm) {
         frm.add_custom_button(__("Index All"), () => _trigger_full_index(frm), __("Actions"));
+        frm.add_custom_button(__("Refresh Schema Catalog"), () => _trigger_schema_refresh(frm), __("Actions"));
         _sync_install_button(frm);
         _render_active_prefix_banner(frm);
         _render_sync_health(frm);
@@ -165,6 +166,26 @@ function _trigger_full_index(frm) {
             });
         }
     );
+}
+
+function _trigger_schema_refresh(frm) {
+    frappe.call({
+        method: "frapperag.api.settings.refresh_schema_catalog",
+        freeze: true,
+        freeze_message: __("Queuing schema catalog refresh…"),
+        callback(r) {
+            if (r.exc || !r.message) return;
+
+            const status = r.message.status || __("Queued");
+            const indicator = r.message.queued ? "blue" : "orange";
+            const message = r.message.queued
+                ? __("Schema catalog refresh queued.")
+                : __("Schema catalog refresh is already {0}.", [status]);
+
+            frappe.show_alert({ message, indicator });
+            frm.reload_doc();
+        },
+    });
 }
 
 function _render_sync_health(frm) {

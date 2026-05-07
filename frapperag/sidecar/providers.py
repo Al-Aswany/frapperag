@@ -59,22 +59,30 @@ class GeminiProvider:
         if not api_key:
             raise HTTPException(status_code=503, detail="GOOGLE_API_KEY required for gemini provider")
         task_type = "RETRIEVAL_QUERY" if mode == "query" else "RETRIEVAL_DOCUMENT"
-        vectors = []
-        for text in texts:
+        # batchEmbedContents: all texts in one API call (limit 100 per batch).
+        _BATCH_LIMIT = 100
+        vectors: list[list[float]] = []
+        for chunk_start in range(0, len(texts), _BATCH_LIMIT):
+            chunk = texts[chunk_start:chunk_start + _BATCH_LIMIT]
             resp = httpx.post(
-                "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent",
+                "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:batchEmbedContents",
                 headers={"x-goog-api-key": api_key},
                 json={
-                    "model": "models/gemini-embedding-001",
-                    "content": {"parts": [{"text": text}]},
-                    "taskType": task_type,
-                    "outputDimensionality": 768,
+                    "requests": [
+                        {
+                            "model": "models/gemini-embedding-001",
+                            "content": {"parts": [{"text": text}]},
+                            "taskType": task_type,
+                            "outputDimensionality": 768,
+                        }
+                        for text in chunk
+                    ]
                 },
-                timeout=30.0,
+                timeout=60.0,
             )
             if resp.status_code != 200:
                 raise HTTPException(status_code=resp.status_code, detail=f"Gemini embed error: {resp.text[:300]}")
-            vectors.append(resp.json()["embedding"]["values"])
+            vectors.extend(e["values"] for e in resp.json()["embeddings"])
         return vectors
 
 

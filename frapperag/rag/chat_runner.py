@@ -84,7 +84,9 @@ def run_chat_job(message_id: str, session_id: str, user: str, question: str = ""
 
     # Read api_key from Settings — never from enqueue kwargs
     t0 = _time.monotonic()
-    api_key = frappe.get_cached_doc("AI Assistant Settings", "AI Assistant Settings").get_password("gemini_api_key")
+    settings = frappe.get_cached_doc("AI Assistant Settings", "AI Assistant Settings")
+    api_key = settings.get_password("gemini_api_key")
+    assistant_mode = ((getattr(settings, "assistant_mode", None) or "v1").strip() or "v1").lower()
     _log().info(f"[TIMING][{message_id}] settings_read {_time.monotonic() - t0:.3f}s")
 
     # Enforce the calling user's permission context (Principle III)
@@ -99,6 +101,23 @@ def run_chat_job(message_id: str, session_id: str, user: str, question: str = ""
             question = frappe.db.get_value("Chat Message", message_id, "content") or ""
         _log().info(f"[TIMING][{message_id}] question_len={len(question)} chars")
 
+        # Phase 2 shadow routing: classify the message for observability only.
+        # This must never block or modify the existing v1 answer path.
+        route = None
+        try:
+            from frapperag.assistant.intent_router import log_shadow_route_decision, route_question
+
+            route = route_question(question, use_llm_fallback=False, settings=settings)
+            log_shadow_route_decision(
+                route,
+                question=question,
+                message_id=message_id,
+                session_id=session_id,
+                user=user,
+            )
+        except Exception:
+            _log().exception("[ROUTER_SHADOW_FAILED] message_id=%s session_id=%s", message_id, session_id)
+
         # Close the implicit transaction opened by settings_read before the heavy I/O.
         # All subsequent work (search + generate) runs outside any open transaction,
         # so the final writes are in a clean, minimal transaction.
@@ -106,106 +125,134 @@ def run_chat_job(message_id: str, session_id: str, user: str, question: str = ""
         frappe.db.commit()
         _log().info(f"[TIMING][{message_id}] pre_commit {_time.monotonic() - t0:.3f}s")
 
-        # Load whitelist + build per-report Gemini tool declarations (FR-004, FR-005)
-        t0 = _time.monotonic()
-        whitelist_names, whitelist_entries = _load_report_whitelist()
-        report_tools, slug_to_name = build_report_tool_definitions(whitelist_entries)
-        query_tools, slug_to_template = build_query_tool_definitions()
-        # Slug collision guard — execute_* and run_* prefixes must never overlap
-        _slug_overlap = slug_to_name.keys() & slug_to_template.keys()
-        assert not _slug_overlap, f"Tool slug collision detected: {_slug_overlap}"
-        # Merge both tool lists; handle all four None combinations
-        all_tools = (report_tools or []) + (query_tools or []) or None
-        _log().info(
-            f"[TIMING][{message_id}] load_whitelist {_time.monotonic() - t0:.3f}s"
-            f" → {len(whitelist_names)} reports, tools={'yes' if all_tools else 'no'}"
-        )
+        hybrid_result = None
+        if assistant_mode == "hybrid":
+            try:
+                from frapperag.assistant.chat_orchestrator import try_generate_hybrid_response
 
-        # 1+2. Embed query + search all v4_* tables via sidecar (single HTTP call)
-        t0 = _time.monotonic()
-        candidates = search_candidates(question)
-        _log().info(
-            f"[TIMING][{message_id}] search_candidates {_time.monotonic() - t0:.3f}s"
-            f" → {len(candidates)} candidates"
-        )
-
-        # 3. Filter by user permissions per-record (Principle III)
-        t0 = _time.monotonic()
-        filtered = filter_by_permission(candidates, user)
-        _log().info(
-            f"[TIMING][{message_id}] filter_by_permission {_time.monotonic() - t0:.3f}s"
-            f" ({len(candidates)} → {len(filtered)} records)"
-        )
-
-        # 4. Load last 10 conversation turns (excluding the current Pending message)
-        t0 = _time.monotonic()
-        history_docs = frappe.db.get_all(
-            "Chat Message",
-            filters={"session": session_id, "name": ["!=", message_id]},
-            fields=["role", "content"],
-            order_by="creation desc",
-            limit=10,
-            ignore_permissions=False,
-        )
-        history = [{"role": d.role, "content": d.content} for d in reversed(history_docs)]
-        _log().info(
-            f"[TIMING][{message_id}] load_history {_time.monotonic() - t0:.3f}s"
-            f" → {len(history)} turns"
-        )
-
-        # 5. Build Gemini message list
-        t0 = _time.monotonic()
-        messages = build_messages(question, filtered, history)
-        prompt_chars = sum(len(p) for m in messages for p in m.get("parts", []))
-        _log().info(
-            f"[TIMING][{message_id}] build_messages {_time.monotonic() - t0:.3f}s"
-            f" → {len(messages)} turns, ~{prompt_chars} chars in prompt"
-        )
-
-        # 6. Generate response (gemini-2.5-flash) — pass tools when whitelist non-empty
-        t0 = _time.monotonic()
-        result = generate_response(messages, filtered, api_key, tools=all_tools)
-        _log().info(
-            f"[TIMING][{message_id}] generate_response {_time.monotonic() - t0:.3f}s"
-            f" tokens_used={result['tokens_used']}"
-        )
-
-        # Branch on response type (FR-007, FR-008)
-        if "tool_call" in result:
-            tool_name = result["tool_call"]["name"]
-            if tool_name in slug_to_name:
-                # Report execution path (existing)
                 t0 = _time.monotonic()
-                report_result = execute_report(
-                    {"report_name": slug_to_name[tool_name], "filters": dict(result["tool_call"]["args"])},
-                    user,
-                    whitelist_names,
+                hybrid_result = try_generate_hybrid_response(
+                    question=question,
+                    user=user,
+                    message_id=message_id,
+                    session_id=session_id,
+                    route=route,
+                    settings=settings,
+                    api_key=api_key,
                 )
-                final_text = report_result["text"]
-                final_citations = report_result["citations"]
-                tokens_used = result["tokens_used"]
-                _log().info(f"[TIMING][{message_id}] execute_report {_time.monotonic() - t0:.3f}s")
-            elif tool_name in slug_to_template:
-                # Query execution path (new — ExecuteQuery tool)
-                t0 = _time.monotonic()
-                query_result = execute_query(
-                    {"template": slug_to_template[tool_name], "params": dict(result["tool_call"]["args"])},
-                    user,
+                _log().info(
+                    f"[TIMING][{message_id}] hybrid_attempt {_time.monotonic() - t0:.3f}s"
+                    f" → handled={'yes' if hybrid_result else 'no'}"
                 )
-                final_text = query_result["text"]
-                final_citations = query_result["citations"]
-                tokens_used = result["tokens_used"]
-                _log().info(f"[TIMING][{message_id}] execute_query {_time.monotonic() - t0:.3f}s")
-            else:
-                # Unknown slug (should not happen — hallucinated function name)
-                final_text = result.get("text", "")
-                final_citations = result.get("citations", [])
-                tokens_used = result["tokens_used"]
+            except Exception:
+                _log().exception("[HYBRID_ATTEMPT_FAILED] message_id=%s session_id=%s", message_id, session_id)
+
+        filtered = []
+        if hybrid_result:
+            final_text = hybrid_result["final_text"]
+            final_citations = hybrid_result.get("citations") or []
+            tokens_used = hybrid_result.get("tokens_used", 0)
         else:
-            # Existing RAG path (unchanged)
-            final_text = result["text"]
-            final_citations = result["citations"]
-            tokens_used = result["tokens_used"]
+            # Load whitelist + build per-report Gemini tool declarations (FR-004, FR-005)
+            t0 = _time.monotonic()
+            whitelist_names, whitelist_entries = _load_report_whitelist()
+            report_tools, slug_to_name = build_report_tool_definitions(whitelist_entries)
+            query_tools, slug_to_template = build_query_tool_definitions()
+            # Slug collision guard — execute_* and run_* prefixes must never overlap
+            _slug_overlap = slug_to_name.keys() & slug_to_template.keys()
+            assert not _slug_overlap, f"Tool slug collision detected: {_slug_overlap}"
+            # Merge both tool lists; handle all four None combinations
+            all_tools = (report_tools or []) + (query_tools or []) or None
+            _log().info(
+                f"[TIMING][{message_id}] load_whitelist {_time.monotonic() - t0:.3f}s"
+                f" → {len(whitelist_names)} reports, tools={'yes' if all_tools else 'no'}"
+            )
+
+            # 1+2. Embed query + search all v4_* tables via sidecar (single HTTP call)
+            t0 = _time.monotonic()
+            candidates = search_candidates(question, api_key=api_key)
+            _log().info(
+                f"[TIMING][{message_id}] search_candidates {_time.monotonic() - t0:.3f}s"
+                f" → {len(candidates)} candidates"
+            )
+
+            # 3. Filter by user permissions per-record (Principle III)
+            t0 = _time.monotonic()
+            filtered = filter_by_permission(candidates, user)
+            _log().info(
+                f"[TIMING][{message_id}] filter_by_permission {_time.monotonic() - t0:.3f}s"
+                f" ({len(candidates)} → {len(filtered)} records)"
+            )
+
+            # 4. Load last 10 conversation turns (excluding the current Pending message)
+            t0 = _time.monotonic()
+            history_docs = frappe.db.get_all(
+                "Chat Message",
+                filters={"session": session_id, "name": ["!=", message_id]},
+                fields=["role", "content"],
+                order_by="creation desc",
+                limit=10,
+                ignore_permissions=False,
+            )
+            history = [{"role": d.role, "content": d.content} for d in reversed(history_docs)]
+            _log().info(
+                f"[TIMING][{message_id}] load_history {_time.monotonic() - t0:.3f}s"
+                f" → {len(history)} turns"
+            )
+
+            # 5. Build Gemini message list
+            t0 = _time.monotonic()
+            messages = build_messages(question, filtered, history)
+            prompt_chars = sum(len(p) for m in messages for p in m.get("parts", []))
+            _log().info(
+                f"[TIMING][{message_id}] build_messages {_time.monotonic() - t0:.3f}s"
+                f" → {len(messages)} turns, ~{prompt_chars} chars in prompt"
+            )
+
+            # 6. Generate response via the configured chat runtime — pass tools when whitelist non-empty
+            t0 = _time.monotonic()
+            result = generate_response(messages, filtered, api_key, tools=all_tools)
+            _log().info(
+                f"[TIMING][{message_id}] generate_response {_time.monotonic() - t0:.3f}s"
+                f" tokens_used={result['tokens_used']}"
+            )
+
+            # Branch on response type (FR-007, FR-008)
+            if "tool_call" in result:
+                tool_name = result["tool_call"]["name"]
+                if tool_name in slug_to_name:
+                    # Report execution path (existing)
+                    t0 = _time.monotonic()
+                    report_result = execute_report(
+                        {"report_name": slug_to_name[tool_name], "filters": dict(result["tool_call"]["args"])},
+                        user,
+                        whitelist_names,
+                    )
+                    final_text = report_result["text"]
+                    final_citations = report_result["citations"]
+                    tokens_used = result["tokens_used"]
+                    _log().info(f"[TIMING][{message_id}] execute_report {_time.monotonic() - t0:.3f}s")
+                elif tool_name in slug_to_template:
+                    # Query execution path (new — ExecuteQuery tool)
+                    t0 = _time.monotonic()
+                    query_result = execute_query(
+                        {"template": slug_to_template[tool_name], "params": dict(result["tool_call"]["args"])},
+                        user,
+                    )
+                    final_text = query_result["text"]
+                    final_citations = query_result["citations"]
+                    tokens_used = result["tokens_used"]
+                    _log().info(f"[TIMING][{message_id}] execute_query {_time.monotonic() - t0:.3f}s")
+                else:
+                    # Unknown slug (should not happen — hallucinated function name)
+                    final_text = result.get("text", "")
+                    final_citations = result.get("citations", [])
+                    tokens_used = result["tokens_used"]
+            else:
+                # Existing RAG path (unchanged)
+                final_text = result["text"]
+                final_citations = result["citations"]
+                tokens_used = result["tokens_used"]
 
         # Separate tool-call results from retriever candidates.
         # citations      → only items the AI actually used (report_result, query_result,
