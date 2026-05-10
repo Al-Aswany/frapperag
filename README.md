@@ -270,6 +270,76 @@ Suggested checks:
 4. Send an unsupported or unclear query in `hybrid` mode and confirm chat safely falls back to the normal v1 answer path.
 5. Switch back to `assistant_mode = v1` and confirm the unchanged v1 behavior returns immediately without hybrid tool activity.
 
+## Phase 4B Hybrid Hardening Approved
+
+Phase 4B is approved. It adds a manual structured-query hardening matrix for the approved hybrid path without changing the default runtime. `assistant_mode` stays `v1` by default, hybrid remains limited to validated read-only `get_list`, full schema catalogs are still never passed to Gemini, and no Google Search, raw SQL, Query Builder joins, write actions, vector-index cleanup, or v1 file removal are introduced here.
+
+- Added [phase4b_hybrid_matrix.json](/home/ah_hammadi/golive-bench/apps/frapperag/frapperag/tests/phase4b_hybrid_matrix.json) with 11 manual cases covering:
+- customer list
+- sales invoice list with date filter
+- sales invoice latest records
+- item list
+- supplier list
+- unsafe field rejection
+- disabled DocType rejection
+- excessive limit rejection
+- child-table query rejection/fallback
+- unclear query fallback
+- non-structured query fallback
+- Added [phase4b_hybrid_runner.py](/home/ah_hammadi/golive-bench/apps/frapperag/frapperag/tests/phase4b_hybrid_runner.py) so the full matrix or a single case can be run from `bench`.
+- Added `frapperag.assistant.chat_orchestrator.debug_probe_hybrid_path(...)` as a debug-only probe for hybrid validation/execution and fail-closed fallback checks without changing the live `v1` chat path.
+
+### Manual commands
+
+```bash
+bench --site golive.site1 execute frapperag.tests.phase4b_hybrid_runner.run_matrix
+bench --site golive.site1 execute frapperag.tests.phase4b_hybrid_runner.run_case --kwargs "{'case_id': 'unsafe_field_rejection'}"
+bench --site golive.site1 execute frapperag.assistant.tool_call_log.debug_get_recent_tool_logs --kwargs "{'limit': 20}"
+```
+
+### Recorded result
+
+Recorded run on `golive.site1` at `2026-05-07T22:11:17Z`:
+
+- `11 / 11` matrix cases passed.
+- `assistant_mode` was `v1` before the run and `v1` after the run.
+- Safe `get_list` cases passed for `Customer`, `Sales Invoice`, `Item`, and `Supplier`.
+- Unsafe field, disabled DocType, excessive limit, and child-table requests were rejected during validation and marked as hybrid fallback outcomes.
+- Unclear and non-structured questions resolved to fail-closed hybrid fallback outcomes before any live hybrid execution.
+- `AI Tool Call Log` rows emitted by the probe are tagged with `assistant_mode = hybrid` for diagnosis even though the site default stayed `v1`.
+- Results file written to [phase4b_hybrid_results_20260507T221117Z.json](/home/ah_hammadi/golive-bench/apps/frapperag/frapperag/tests/phase4b_hybrid_results_20260507T221117Z.json).
+
+## Phase 4C Self-Serve Analytics Foundation
+
+Phase 4C foundation is implemented as unused/import-safe scaffolding only. It adds a structured analytics DSL and fail-closed validation without changing normal chat, hybrid runtime behavior, vector sync, or adding any analytics executor.
+
+- Added `frapperag.assistant.analytics.analytics_plan_schema` with Option A only: structured JSON analytics plan shapes for `single_doctype_aggregate`, `parent_child_aggregate`, `time_bucket_aggregate`, `period_comparison`, `co_occurrence`, `top_n`, `bottom_n`, `ratio`, and `trend`.
+- Added `frapperag.assistant.analytics.relationship_graph` with approved ERPNext relationship edges such as `Sales Invoice -> Sales Invoice Item`, `Customer -> Territory`, `Customer -> Customer Group`, `Item -> Item Group`, `Payment Entry -> Party`, and `Stock Ledger Entry -> Item` / `Warehouse`.
+- Added `frapperag.assistant.analytics.metric_registry` with curated safe metrics such as `sales_amount`, `sales_qty`, `invoice_count`, `avg_invoice_value`, `outstanding_amount`, `purchase_amount`, `purchase_qty`, `stock_qty`, and `movement_qty`.
+- Added `frapperag.assistant.analytics.analytics_validator` to fail closed on unsupported analysis types, DocTypes, fields, metrics, relationships, unsafe limits, missing required date filters for large tables, SQL strings, write-like payloads, and unsupported child-table traversal.
+- The validator reuses `RAG Allowed DocType` query-policy fields where available, especially `enabled`, `default_date_field`, `allow_child_tables`, `default_limit`, and `large_table_requires_date_filter`.
+- Explicit non-goals in this foundation pass:
+- no raw LLM SQL
+- no guarded text-to-SQL
+- no analytics query execution
+- no write actions
+- no change to default `assistant_mode = v1`
+- no change to current v1 chat answers or approved hybrid `get_list` behavior
+
+### Manual verification commands
+
+```bash
+python -m py_compile \
+  apps/frapperag/frapperag/assistant/analytics/__init__.py \
+  apps/frapperag/frapperag/assistant/analytics/analytics_plan_schema.py \
+  apps/frapperag/frapperag/assistant/analytics/relationship_graph.py \
+  apps/frapperag/frapperag/assistant/analytics/metric_registry.py \
+  apps/frapperag/frapperag/assistant/analytics/analytics_validator.py
+bench --site golive.site1 execute frapperag.assistant.analytics.analytics_plan_schema.debug_describe_supported_plan_shapes
+bench --site golive.site1 execute frapperag.assistant.analytics.metric_registry.debug_describe_metric_registry --kwargs "{'source_doctype': 'Sales Invoice'}"
+bench --site golive.site1 execute frapperag.assistant.analytics.relationship_graph.debug_describe_relationship_graph --kwargs "{'source_doctype': 'Sales Invoice'}"
+```
+
 ## Running
 
 ```bash

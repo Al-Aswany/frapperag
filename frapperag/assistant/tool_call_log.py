@@ -104,6 +104,90 @@ def debug_get_recent_tool_logs(limit: int = 10) -> dict[str, Any]:
     return {"logs": [dict(row) for row in rows], "available": True}
 
 
+def debug_get_tool_logs_for_request(request_id: str, limit: int = 20) -> dict[str, Any]:
+    limit = max(1, min(cint(limit or 20), 50))
+    request_id = (request_id or "").strip()
+    if not request_id or not frappe.db.exists("DocType", LOG_DOCTYPE):
+        return {"logs": [], "available": False, "request_id": request_id}
+
+    rows = frappe.get_all(
+        LOG_DOCTYPE,
+        filters={"request_id": request_id},
+        fields=[
+            "name",
+            "creation",
+            "operation",
+            "status",
+            "tool_name",
+            "doctype_name",
+            "user_id",
+            "request_id",
+            "intent",
+            "assistant_mode",
+            "row_count",
+            "duration_ms",
+            "error_message",
+            "plan_json",
+            "details_json",
+        ],
+        order_by="creation asc",
+        limit=limit,
+        ignore_permissions=True,
+    )
+    return {
+        "logs": [_parse_log_row(row) for row in rows],
+        "available": True,
+        "request_id": request_id,
+    }
+
+
+def build_analytics_log_details(
+    *,
+    hybrid_branch: str,
+    analysis_type: str = "",
+    source_doctype: str = "",
+    planner_mode: str = "",
+    route_confidence: float = 0.0,
+    candidate_doctypes: list[str] | None = None,
+    requested_limit: int | None = None,
+    effective_limit: int | None = None,
+    policy_limit: int | None = None,
+    date_filter_required: bool | int = False,
+    date_filter_present: bool | int = False,
+    metrics: list[str] | None = None,
+    dimensions: list[str] | None = None,
+    relationships: list[str] | None = None,
+    result_status: str = "",
+    fallback_reason: str = "",
+    empty_result: bool | int = False,
+    error_code: str = "",
+    error_class: str = "",
+    composer_mode: str = "",
+) -> dict[str, Any]:
+    return {
+        "hybrid_branch": (hybrid_branch or "").strip(),
+        "analysis_type": (analysis_type or "").strip(),
+        "source_doctype": (source_doctype or "").strip(),
+        "planner_mode": (planner_mode or "").strip(),
+        "route_confidence": float(route_confidence or 0.0),
+        "candidate_doctypes": [str(value).strip() for value in (candidate_doctypes or []) if str(value).strip()],
+        "requested_limit": cint(requested_limit or 0),
+        "effective_limit": cint(effective_limit or 0),
+        "policy_limit": cint(policy_limit or 0),
+        "date_filter_required": cint(bool(date_filter_required)),
+        "date_filter_present": cint(bool(date_filter_present)),
+        "metrics": [str(value).strip() for value in (metrics or []) if str(value).strip()],
+        "dimensions": [str(value).strip() for value in (dimensions or []) if str(value).strip()],
+        "relationships": [str(value).strip() for value in (relationships or []) if str(value).strip()],
+        "result_status": (result_status or "").strip(),
+        "fallback_reason": (fallback_reason or "").strip(),
+        "empty_result": cint(bool(empty_result)),
+        "error_code": (error_code or "").strip(),
+        "error_class": (error_class or "").strip(),
+        "composer_mode": (composer_mode or "").strip(),
+    }
+
+
 def _dump_json(value: dict[str, Any] | None) -> str:
     if not value:
         return ""
@@ -115,7 +199,27 @@ def _dump_json(value: dict[str, Any] | None) -> str:
 
 
 def _get_assistant_mode() -> str:
+    override = getattr(frappe.flags, "frapperag_assistant_mode_override", None)
+    if override:
+        return str(override)
     try:
         return frappe.db.get_single_value("AI Assistant Settings", "assistant_mode") or "v1"
     except Exception:
         return "v1"
+
+
+def _parse_log_row(row: Any) -> dict[str, Any]:
+    current = dict(row)
+    current["plan"] = _loads_json(current.pop("plan_json", ""))
+    current["details"] = _loads_json(current.pop("details_json", ""))
+    return current
+
+
+def _loads_json(raw_value: str) -> dict[str, Any]:
+    if not raw_value:
+        return {}
+    try:
+        parsed = json.loads(raw_value)
+    except Exception:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}

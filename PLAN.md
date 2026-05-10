@@ -146,8 +146,11 @@
 1. Phase 1: preserve current app behavior exactly, add v2 scaffolding, and introduce feature flags only. Chat answers must not change; keep `api/chat.py`, `rag_chat`, chat DocTypes, current sidecar `/chat`, existing RAG path, and all v1 files untouched. Add `assistant_mode = v1|hybrid|v2`, schema catalog refresh/status, `AI Tool Call Log`, and `AI Indexing Job.job_type`.
 2. Phase 2: build schema indexing and intent routing in shadow mode. Add schema catalog refresh, metadata-specific hooks for `DocType`/`Custom Field`/`Property Setter`/`Workflow`/`Report`, and a router that classifies every incoming question; log route decisions without changing answers.
 3. Phase 3: shift structured questions to live execution. Introduce planner, validator, `run_get_list`, `run_query_template`, and `run_allowed_report`; keep Gemini calls through the existing sidecar client, keep document RAG as fallback for `document_rag`, `erpnext_help`, and `mixed_query`, and leave v1 files in place.
-4. Phase 4: disable record-level vector indexing by default. Remove transactional DocTypes from default indexing, stop wildcard structured sync hooks, convert long-text indexing to explicit `AI Document Source` policies, and keep only document/attachment ingestion jobs; do not delete legacy v1 files yet.
-5. Phase 5: clean up old architecture. After migration is complete, retire `rag/text_converter.py` for structured records, narrow or remove `rag/query_executor.py` and `rag/chat_runner.py`, deprecate `Sync Event Log` if unused, evaluate whether sidecar `/chat` can be reduced, and remove superseded v1 components.
+4. Phase 4: connect the shadow router and validated live-query path to chat behind `assistant_mode = hybrid` only. Keep `assistant_mode = v1` as the default, preserve the existing v1 answer path in `v1` mode, and fail closed back to v1 for unsupported or rejected hybrid requests.
+5. Phase 4B: harden the approved hybrid path with a repeatable structured-query matrix, debug probes, and tool-log verification while keeping the runtime default at `v1` and the hybrid scope limited to validated read-only `get_list`.
+6. Phase 4C: add the self-serve analytics foundation. Introduce curated analytics building blocks for reusable metrics, dimensions, filters, and saved question definitions so broader analytics can be planned safely without opening raw SQL or write paths.
+7. Phase 5: disable record-level vector indexing by default. Remove transactional DocTypes from default indexing, stop wildcard structured sync hooks, convert long-text indexing to explicit `AI Document Source` policies, and keep only document/attachment ingestion jobs; do not delete legacy v1 files yet.
+8. Phase 6: clean up old architecture. After migration is complete, retire `rag/text_converter.py` for structured records, narrow or remove `rag/query_executor.py` and `rag/chat_runner.py`, deprecate `Sync Event Log` if unused, evaluate whether sidecar `/chat` can be reduced, and remove superseded v1 components.
 
 ## 11. Acceptance Criteria
 - Functional: the assistant correctly routes structured questions to live queries, process/help questions to schema-aware answers, document questions to RAG, and mixed questions to combined execution without relying on record-level vector context.
@@ -326,6 +329,167 @@ Phase 4:
 - If `RAG Allowed DocType` child-row policy values are changed directly during verification, clear cached `AI Assistant Settings` before retesting because policy loading uses `get_cached_doc()`.
 - Cache-clear command:
 - `bench --site golive.site1 execute frappe.clear_document_cache --args '["AI Assistant Settings", "AI Assistant Settings"]'`
+- Verification results on `golive.site1` (`2026-05-08`):
+- Diagnosis:
+- Router candidate DocTypes were already correct for the failing prompts:
+- `List 3 customers` → `structured_query`, candidates `Customer`, `Delivery Note`, `Purchase Invoice`, ...
+- `List the latest 3 Sales Invoices since 2026-01-01` → `structured_query`, candidates `Sales Invoice`, `Sales Order`, `Customer`, ...
+- The planner bug was in the safe schema snippets passed to Gemini, not in routing:
+- `_build_planner_schema_snippets()` truncated each DocType to the first 12 safe catalog fields in raw metadata order.
+- That slice omitted validator-safe standard fields such as `name`, `modified`, `creation`, and `docstatus`.
+- It also omitted later list-friendly safe fields such as `grand_total` and `status` for `Sales Invoice`.
+- Result: Gemini often returned an empty plan payload (`doctype = ""`, `fields = []`) for obvious list questions, or asked for clarification for fields that were actually validator-safe but absent from the snippet.
+- Minimal fix shipped in `frapperag/assistant/planner.py` only:
+- Prepended the same safe standard fields the validator already allows (`name`, `modified`, `creation`, `docstatus`) to planner-visible schema snippets.
+- Replaced raw-order truncation with a ranked safe-field selection that favors default date/title fields plus list-view/filter-friendly fields.
+- Added `suggested_fields` to planner snippets and tightened the planner prompt so `doctype` must be present and must match a listed schema snippet name.
+- Added narrow DocType parsing normalization for canonical allowed names only; validator safety rules were not weakened.
+- Verification sequence:
+- Confirmed `assistant_mode` started as `v1`.
+- Initial v1 smoke passed unchanged:
+- Session `RAG-SESS-2026-05-080006`
+- Message `RAG-MSG-2026-05-080006`
+- Final answer returned successfully with no citations.
+- Worker log showed the existing v1 path (`load_whitelist` → `search_candidates` → `build_messages` → `generate_response`) and no `hybrid_attempt` / `HYBRID_*` lines.
+- No `AI Tool Call Log` rows were created for `request_id = hybrid-RAG-MSG-2026-05-080006`.
+- Switched temporarily to `assistant_mode = hybrid`.
+- Hybrid structured-query success 1:
+- Session `RAG-SESS-2026-05-080007`
+- Message `RAG-MSG-2026-05-080007`
+- Question: `List 3 customers`
+- Router selected `structured_query` with `confidence = 0.68`.
+- Planner selected `DocType = Customer`.
+- Validator accepted.
+- Read-only `get_list` executor returned 3 rows.
+- Grounded composer returned the final answer.
+- `query_result` citation was emitted with `doctype = Customer`, `columns = ["name", "customer_group", "territory"]`, `row_count = 3`.
+- `AI Tool Call Log` recorded `Success` rows for `planner.plan_structured_query`, `validator.validate_plan`, `executor.get_list.execute_validated_plan`, and `composer.compose_structured_answer`, all with `assistant_mode = hybrid`.
+- Worker log showed `[HYBRID_SUCCESS] ... request_id=hybrid-RAG-MSG-2026-05-080007 ... rows=3` and `hybrid_attempt ... handled=yes`.
+- Hybrid structured-query success 2:
+- Session `RAG-SESS-2026-05-080008`
+- Message `RAG-MSG-2026-05-080008`
+- Question: `List the latest 3 Sales Invoices since 2026-01-01`
+- Planner selected `DocType = Sales Invoice`.
+- Validator accepted.
+- Read-only `get_list` executor returned 3 rows.
+- Final answer included a `query_result` citation for `Sales Invoice`.
+- `AI Tool Call Log` recorded `Success` rows for planner, validator, executor, and composer with `assistant_mode = hybrid`.
+- Hybrid rejected-structured fallback passed:
+- Session `RAG-SESS-2026-05-080010`
+- Message `RAG-MSG-2026-05-080010`
+- Question: `List the latest 3 Sales Invoices with item rows since 2026-01-01`
+- Router still selected `structured_query` with `confidence = 0.82`.
+- Planner rejected the request because `item rows` would require child-table access.
+- `AI Tool Call Log` recorded `planner.plan_structured_query` as `Rejected` with `assistant_mode = hybrid`.
+- Worker log showed `HYBRID_FALLBACK ... reason=planner_rejected` followed by `hybrid_attempt ... handled=no`.
+- Chat safely fell back to the existing v1 path and returned a v1 `query_result` citation using template `aggregate_doctype`.
+- Restored `assistant_mode = v1`.
+- Final v1 smoke passed unchanged:
+- Session `RAG-SESS-2026-05-080011`
+- Message `RAG-MSG-2026-05-080011`
+- Final answer returned successfully with no citations.
+- Worker log again showed the unchanged v1 path with no `hybrid_attempt` / `HYBRID_*` lines.
+- No `AI Tool Call Log` rows were created for `request_id = hybrid-RAG-MSG-2026-05-080011`.
+- Verification scope checks:
+- Google Search remained disabled during this pass.
+- No raw SQL, Query Builder join path, or write action was added to the hybrid structured-query flow.
+- Record-level vector indexing was not disabled in this fix.
+- No Phase 5 cleanup was introduced and no v1 files were removed.
+
+Phase 4B: Completed / Approved
+- Hybrid hardening stayed inside the approved Phase 4 scope:
+- Default `assistant_mode` remains `v1`.
+- Hybrid remains limited to validated read-only `get_list`.
+- No Google Search was enabled.
+- No raw SQL, Query Builder joins, or write actions were introduced.
+- No v1 files were removed.
+- No record-level vector-index disabling or other Phase 5 cleanup was introduced.
+- Added a manual structured-query matrix at [phase4b_hybrid_matrix.json](/home/ah_hammadi/golive-bench/apps/frapperag/frapperag/tests/phase4b_hybrid_matrix.json).
+- Added a bench runner at [phase4b_hybrid_runner.py](/home/ah_hammadi/golive-bench/apps/frapperag/frapperag/tests/phase4b_hybrid_runner.py).
+- Added `frapperag.assistant.chat_orchestrator.debug_probe_hybrid_path(...)` for debug-only hybrid probing of validation/execution and fail-closed fallback behavior without changing live `v1` chat execution.
+- Manual commands:
+- `bench --site golive.site1 execute frapperag.tests.phase4b_hybrid_runner.run_matrix`
+- `bench --site golive.site1 execute frapperag.tests.phase4b_hybrid_runner.run_case --kwargs "{'case_id': 'unsafe_field_rejection'}"`
+- `bench --site golive.site1 execute frapperag.assistant.tool_call_log.debug_get_recent_tool_logs --kwargs "{'limit': 20}"`
+- Recorded matrix execution on `golive.site1`:
+- Started at `2026-05-07T22:11:17Z`.
+- Results file: [phase4b_hybrid_results_20260507T221117Z.json](/home/ah_hammadi/golive-bench/apps/frapperag/frapperag/tests/phase4b_hybrid_results_20260507T221117Z.json).
+- Summary: `11 / 11` cases passed.
+- `assistant_mode` was `v1` before the run and `v1` after the run.
+- `AI Tool Call Log` rows emitted by the debug probe were tagged with `assistant_mode = hybrid` for accurate diagnosis while preserving the live default mode.
+- Safe `get_list` cases passed:
+- `customer_list` returned 5 rows from `Customer`.
+- `sales_invoice_list_with_date_filter` returned 5 rows from `Sales Invoice`.
+- `sales_invoice_latest_records` returned 3 rows from `Sales Invoice`.
+- `item_list` returned 5 rows from `Item`.
+- `supplier_list` returned 5 rows from `Supplier`.
+- Unsafe or unsupported cases were rejected and recorded as hybrid fallback outcomes:
+- `unsafe_field_rejection` rejected `Sales Invoice.items`.
+- `disabled_doctype_rejection` rejected `User`.
+- `excessive_limit_rejection` rejected `limit = 500`.
+- `child_table_query_rejection_fallback` rejected `Sales Invoice Item`.
+- Route-level fallback cases passed without attempting live hybrid execution:
+- `unclear_query_fallback` routed to `unclear` and returned `fallback_reason = non_structured`.
+- `non_structured_query_fallback` routed to `document_rag` and returned `fallback_reason = non_structured`.
+- No additional runtime hybrid bug required a production-path fix beyond adding the debug probe and the manual matrix runner.
+
+Phase 4C:
+Self-Serve Analytics Foundation implemented as unused/import-safe foundation only.
+- Added `frapperag/assistant/analytics/` with:
+- `analytics_plan_schema.py`
+- `relationship_graph.py`
+- `metric_registry.py`
+- `analytics_validator.py`
+- Implemented Option A only: a structured JSON analytics DSL. No guarded text-to-SQL, no raw LLM SQL, and no analytics executor were introduced.
+- Supported analytics plan shapes:
+- `single_doctype_aggregate`
+- `parent_child_aggregate`
+- `time_bucket_aggregate`
+- `period_comparison`
+- `co_occurrence`
+- `top_n`
+- `bottom_n`
+- `ratio`
+- `trend`
+- Added a curated safe relationship graph for:
+- `Sales Invoice -> Sales Invoice Item`
+- `Sales Order -> Sales Order Item`
+- `Purchase Invoice -> Purchase Invoice Item`
+- `Purchase Order -> Purchase Order Item`
+- `Customer -> Territory`
+- `Customer -> Customer Group`
+- `Item -> Item Group`
+- `Payment Entry -> Party`
+- `Stock Ledger Entry -> Item`
+- `Stock Ledger Entry -> Warehouse`
+- Added a curated metric registry for:
+- `sales_amount`
+- `sales_qty`
+- `invoice_count`
+- `avg_invoice_value`
+- `outstanding_amount`
+- `purchase_amount`
+- `purchase_qty`
+- `stock_qty`
+- `movement_qty`
+- Added fail-closed analytics validation for:
+- allowed DocType
+- allowed field
+- allowed metric
+- allowed relationship
+- allowed analysis type
+- safe limit
+- required date field for large tables
+- no write operation
+- no SQL string
+- no unsupported child-table traversal
+- The validator reuses existing `RAG Allowed DocType` query-policy fields where available, including `enabled`, `default_date_field`, `allow_child_tables`, `default_limit`, and `large_table_requires_date_filter`.
+- Runtime boundaries preserved:
+- no changes to v1 chat behavior
+- no changes to hybrid runtime behavior beyond import-safe unused foundation code
+- no vector sync changes
+- no file/image/document work
+- no write actions
 
 Phase 5:
 Disable transactional vector sync by default.

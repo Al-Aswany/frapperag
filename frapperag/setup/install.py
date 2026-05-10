@@ -1,4 +1,6 @@
 import os
+from typing import Any
+
 import frappe
 
 
@@ -285,6 +287,20 @@ _DEFAULT_ALLOWED_DOCTYPE_DATE_FIELDS = {
     "Sales Order": "transaction_date",
     "Stock Entry": "posting_date",
 }
+_PHASE4F_ANALYTICS_POLICY_OVERRIDES = {
+    "Purchase Invoice": {
+        "default_date_field": "posting_date",
+        "allow_query_builder": 1,
+        "allow_child_tables": 1,
+        "large_table_requires_date_filter": 0,
+    },
+    "Sales Invoice": {
+        "default_date_field": "posting_date",
+        "allow_query_builder": 1,
+        "allow_child_tables": 1,
+        "large_table_requires_date_filter": 1,
+    },
+}
 
 _DEFAULT_ROLES = [
     "System Manager",
@@ -317,7 +333,7 @@ _DEFAULT_AGGREGATE_FIELDS = [
 
 def _default_allowed_doctype_policy(doctype_name: str, legacy_date_field: str | None = None) -> dict:
     date_field = legacy_date_field or _DEFAULT_ALLOWED_DOCTYPE_DATE_FIELDS.get(doctype_name)
-    return {
+    policy = {
         "enabled": 1,
         "date_field": date_field,
         "default_date_field": date_field,
@@ -329,6 +345,9 @@ def _default_allowed_doctype_policy(doctype_name: str, legacy_date_field: str | 
         "default_limit": 20,
         "large_table_requires_date_filter": 0,
     }
+    for fieldname, value in (_PHASE4F_ANALYTICS_POLICY_OVERRIDES.get(doctype_name) or {}).items():
+        policy[fieldname] = value
+    return policy
 
 
 def seed_all_settings() -> None:
@@ -397,6 +416,9 @@ def seed_all_settings() -> None:
             setattr(row, fieldname, value)
             changed = True
 
+    if _apply_phase4f_analytics_policy_defaults(settings):
+        changed = True
+
     # --- Allowed Roles ---
     existing_roles = {row.role for row in (settings.allowed_roles or [])}
     for role in _DEFAULT_ROLES:
@@ -436,6 +458,23 @@ def seed_all_settings() -> None:
 
 # Keep backward-compatible alias for the after_migrate hook
 seed_allowed_doctypes = seed_all_settings
+
+
+def _apply_phase4f_analytics_policy_defaults(settings: Any) -> bool:
+    changed = False
+    for row in (settings.allowed_doctypes or []):
+        overrides = _PHASE4F_ANALYTICS_POLICY_OVERRIDES.get(getattr(row, "doctype_name", None) or "")
+        if not overrides:
+            continue
+        for fieldname, value in overrides.items():
+            if getattr(row, fieldname, None) == value:
+                continue
+            setattr(row, fieldname, value)
+            changed = True
+        if getattr(row, "allow_get_list", None) != 1:
+            row.allow_get_list = 1
+            changed = True
+    return changed
 
 
 def _refresh_schema_catalog_bootstrap(reason: str) -> None:

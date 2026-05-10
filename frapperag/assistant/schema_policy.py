@@ -12,6 +12,7 @@ from frapperag.assistant.schema_catalog import load_schema_catalog
 DEFAULT_LIMIT = 20
 MAX_LIMIT = 200
 DEFAULT_SORT = "modified desc"
+PHASE4F_ANALYTICS_SOURCE_DOCTYPES = ("Purchase Invoice", "Sales Invoice")
 
 _SORT_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*(?:\s+(?:asc|desc))?$", re.IGNORECASE)
 _UNSAFE_FIELDTYPES = {
@@ -85,6 +86,71 @@ def load_allowed_doctype_policies(settings: Any | None = None) -> dict[str, dict
 
 def get_allowed_doctype_policy(doctype_name: str, settings: Any | None = None) -> dict[str, Any] | None:
     return load_allowed_doctype_policies(settings=settings).get((doctype_name or "").strip())
+
+
+def load_aggregate_field_policies(settings: Any | None = None) -> dict[str, dict[str, frozenset[str]]]:
+    settings = settings or frappe.get_cached_doc("AI Assistant Settings")
+    grouped: dict[str, dict[str, set[str]]] = {}
+
+    for row in (getattr(settings, "aggregate_fields", None) or []):
+        doctype_name = (getattr(row, "doctype_name", None) or "").strip()
+        fieldname = (getattr(row, "fieldname", None) or "").strip()
+        if not doctype_name or not fieldname:
+            continue
+
+        bucket = grouped.setdefault(
+            doctype_name,
+            {
+                "group_by_fields": set(),
+                "aggregate_fields": set(),
+            },
+        )
+        if cint(getattr(row, "allow_group_by", None)):
+            bucket["group_by_fields"].add(fieldname)
+        if cint(getattr(row, "allow_aggregate", None)):
+            bucket["aggregate_fields"].add(fieldname)
+
+    return {
+        doctype_name: {
+            "group_by_fields": frozenset(values["group_by_fields"]),
+            "aggregate_fields": frozenset(values["aggregate_fields"]),
+        }
+        for doctype_name, values in grouped.items()
+    }
+
+
+def get_analytics_field_policy(doctype_name: str, settings: Any | None = None) -> dict[str, Any]:
+    doctype_name = (doctype_name or "").strip()
+    settings = settings or frappe.get_cached_doc("AI Assistant Settings")
+    doctype_policy = get_allowed_doctype_policy(doctype_name, settings=settings) or {}
+    aggregate_policy = load_aggregate_field_policies(settings=settings).get(doctype_name) or {}
+    default_date_field = (doctype_policy.get("default_date_field") or "").strip()
+    source_dimensions = set(aggregate_policy.get("group_by_fields") or [])
+    source_filters = set(source_dimensions)
+    source_filters.add("docstatus")
+    if default_date_field:
+        source_filters.add(default_date_field)
+    return {
+        "source_dimensions": frozenset(source_dimensions),
+        "source_filters": frozenset(source_filters),
+        "aggregate_fields": frozenset(aggregate_policy.get("aggregate_fields") or []),
+        "default_date_field": default_date_field,
+        "default_limit": _normalize_limit(doctype_policy.get("default_limit")),
+        "large_table_requires_date_filter": cint(doctype_policy.get("large_table_requires_date_filter") or 0),
+    }
+
+
+def get_phase4f_analytics_source_doctypes(settings: Any | None = None) -> list[str]:
+    policies = load_allowed_doctype_policies(settings=settings)
+    return [
+        doctype_name
+        for doctype_name in PHASE4F_ANALYTICS_SOURCE_DOCTYPES
+        if doctype_name in policies and cint(policies[doctype_name].get("enabled"))
+    ]
+
+
+def is_phase4f_analytics_source(doctype_name: str, settings: Any | None = None) -> bool:
+    return (doctype_name or "").strip() in set(get_phase4f_analytics_source_doctypes(settings=settings))
 
 
 def build_safe_schema_slice(
@@ -165,6 +231,14 @@ def debug_query_policy_snapshot() -> dict[str, Any]:
     return {
         "doctype_count": len(policies),
         "doctypes": policies,
+        "phase4f_analytics_source_doctypes": get_phase4f_analytics_source_doctypes(),
+        "aggregate_field_policies": {
+            doctype_name: {
+                "group_by_fields": sorted(values["group_by_fields"]),
+                "aggregate_fields": sorted(values["aggregate_fields"]),
+            }
+            for doctype_name, values in load_aggregate_field_policies().items()
+        },
     }
 
 

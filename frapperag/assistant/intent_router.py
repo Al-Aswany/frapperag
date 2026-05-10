@@ -71,23 +71,45 @@ _STRUCTURED_KEYWORDS = {
     "amount",
     "average",
     "balance",
+    "compare",
     "count",
     "counts",
+    "declining",
     "grand",
     "howmany",
     "latest",
     "list",
     "open",
     "outstanding",
+    "pairs",
+    "ratio",
     "overdue",
     "recent",
     "revenue",
+    "sold",
     "status",
     "sum",
     "total",
     "totals",
     "top",
+    "trend",
+    "unpaid",
     "value",
+    "اجمالي",
+    "اعلى",
+    "الأعلى",
+    "الشهر",
+    "فاتورة",
+    "فواتير",
+    "عميل",
+    "عملاء",
+    "قيمة",
+    "مبيعات",
+    "مشتريات",
+    "مقارنة",
+    "مجموع",
+    "متوسط",
+    "مستحق",
 }
 _REPORT_KEYWORDS = {
     "analysis",
@@ -129,6 +151,9 @@ _HELP_KEYWORDS = {
     "steps",
     "submit",
     "workflow",
+    "كيف",
+    "خطوات",
+    "شرح",
 }
 _OUT_OF_SCOPE_KEYWORDS = {
     "capital",
@@ -153,6 +178,11 @@ _ERP_TERMS = {
     "stock",
     "supplier",
     "workflow",
+    "فاتورة",
+    "فواتير",
+    "مبيعات",
+    "مشتريات",
+    "مخزون",
 }
 _DATA_VERBS = {
     "count",
@@ -162,9 +192,24 @@ _DATA_VERBS = {
     "show",
     "summarize",
     "total",
+    "اعرض",
+    "اظهر",
+    "احسب",
+    "لخص",
+}
+_ARABIC_ANALYTICS_TERMS = {
+    "اعرض",
+    "الشهر",
+    "فاتورة",
+    "فواتير",
+    "قيمة",
+    "مبيعات",
+    "مقارنة",
+    "مجموع",
+    "متوسط",
 }
 _MIX_CONNECTORS = {"and", "also", "along", "plus", "together", "with"}
-_QUESTION_TOKEN_RE = re.compile(r"[a-z0-9]+")
+_QUESTION_TOKEN_RE = re.compile(r"[a-z0-9\u0600-\u06FF]+")
 _JSON_OBJECT_RE = re.compile(r"\{.*\}", re.DOTALL)
 _HELP_PREFIXES = (
     "how do i",
@@ -175,6 +220,8 @@ _HELP_PREFIXES = (
     "what is the workflow",
     "why can't i",
     "why cant i",
+    "كيف",
+    "كيف يمكنني",
 )
 
 
@@ -654,6 +701,10 @@ def _structured_signal(
     if matched:
         score += min(0.44, len(matched) * 0.14)
         reasons.append(f"matched structured terms {matched[:4]}")
+    arabic_matches = sorted(token_set & _ARABIC_ANALYTICS_TERMS)
+    if arabic_matches:
+        score += min(0.26, len(arabic_matches) * 0.09)
+        reasons.append(f"matched Arabic ERP terms {arabic_matches[:4]}")
 
     if candidate_doctypes:
         score += 0.34
@@ -661,9 +712,38 @@ def _structured_signal(
 
     if re.search(r"\b(count|how many|total|sum|list|show|latest|overdue|status)\b", normalized_question):
         score += 0.20
+    if any(term in normalized_question for term in ("اعرض", "اظهر", "اجمالي", "إجمالي", "مبيعات", "فواتير")):
+        score += 0.18
 
     if re.search(r"\b(today|yesterday|week|month|quarter|year|date)\b", normalized_question):
         score += 0.06
+    if any(term in normalized_question for term in ("اليوم", "السنة", "الشهر", "شهر", "تاريخ")):
+        score += 0.06
+
+    analytics_phrase_patterns = (
+        (r"\bby month\b", "by month"),
+        (r"\btrend\b", "trend"),
+        (r"\bcompare\b", "compare"),
+        (r"\bratio\b", "ratio"),
+        (r"\bpairs?\b", "pairs"),
+        (r"\bsales by\b", "sales by"),
+        (r"\bunpaid\b", "unpaid"),
+        (r"\bmost sold\b", "most sold"),
+        (r"\bdeclining\b", "declining"),
+        (r"حسب الشهر", "حسب الشهر"),
+        (r"مبيعات حسب", "مبيعات حسب"),
+        (r"مقارنة", "مقارنة"),
+        (r"متوسط", "متوسط"),
+        (r"غير مدفوع", "غير مدفوع"),
+    )
+    matched_phrases = [
+        label
+        for pattern, label in analytics_phrase_patterns
+        if re.search(pattern, normalized_question)
+    ]
+    if matched_phrases:
+        score += min(0.24, len(matched_phrases) * 0.06)
+        reasons.append(f"matched analytics phrasing {matched_phrases[:4]}")
 
     return min(score, 0.96), _finalize_reason(reasons, "Structured ERP data request.")
 
