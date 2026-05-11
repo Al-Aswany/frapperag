@@ -1,0 +1,596 @@
+[
+  {
+    "case_id": "top_customers_by_sales",
+    "mode": "live_chat",
+    "assistant_mode": "hybrid",
+    "question": "Show the top customers by sales.",
+    "expected": {
+      "message_status": "Completed",
+      "operations_contains": [
+        "planner.plan_analytics_query",
+        "analytics.validator.validate_plan",
+        "analytics.executor.execute_validated_analytics_plan",
+        "composer.compose_analytics_answer"
+      ],
+      "citation_types_contains": ["query_result"],
+      "citation_result_kind": "analytics",
+      "response_not_empty": 1
+    }
+  },
+  {
+    "case_id": "sales_by_month",
+    "mode": "live_chat",
+    "assistant_mode": "hybrid",
+    "question": "Show sales by month.",
+    "expected": {
+      "message_status": "Completed",
+      "operations_contains": [
+        "planner.plan_analytics_query",
+        "analytics.validator.validate_plan",
+        "analytics.executor.execute_validated_analytics_plan",
+        "composer.compose_analytics_answer"
+      ],
+      "citation_types_contains": ["query_result"],
+      "citation_result_kind": "analytics",
+      "analysis_type": "time_bucket_aggregate",
+      "response_not_empty": 1
+    }
+  },
+  {
+    "case_id": "unpaid_invoices_by_customer",
+    "mode": "live_chat",
+    "assistant_mode": "hybrid",
+    "question": "Show unpaid invoices by customer.",
+    "expected": {
+      "message_status": "Completed",
+      "operations_contains": [
+        "planner.plan_analytics_query",
+        "analytics.validator.validate_plan",
+        "analytics.executor.execute_validated_analytics_plan",
+        "composer.compose_analytics_answer"
+      ],
+      "citation_types_contains": ["query_result"],
+      "citation_result_kind": "analytics",
+      "response_not_empty": 1
+    }
+  },
+  {
+    "case_id": "most_sold_item_pairs",
+    "mode": "live_chat",
+    "assistant_mode": "hybrid",
+    "question": "What are the most sold item pairs?",
+    "policy_overrides": {
+      "Sales Invoice": {
+        "allow_query_builder": 1,
+        "allow_child_tables": 1
+      }
+    },
+    "expected": {
+      "message_status": "Completed",
+      "operations_contains": [
+        "planner.plan_analytics_query",
+        "analytics.validator.validate_plan",
+        "analytics.executor.execute_validated_analytics_plan",
+        "composer.compose_analytics_answer"
+      ],
+      "citation_types_contains": ["query_result"],
+      "citation_result_kind": "analytics",
+      "analysis_type": "co_occurrence",
+      "response_not_empty": 1
+    }
+  },
+  {
+    "case_id": "most_sold_item_pairs_this_year",
+    "mode": "live_chat",
+    "assistant_mode": "hybrid",
+    "question": "What are the most sold item pairs this year?",
+    "policy_overrides": {
+      "Sales Invoice": {
+        "allow_query_builder": 1,
+        "allow_child_tables": 1
+      }
+    },
+    "expected": {
+      "message_status": "Completed",
+      "operations_contains": [
+        "planner.plan_analytics_query",
+        "analytics.validator.validate_plan",
+        "analytics.executor.execute_validated_analytics_plan",
+        "composer.compose_analytics_answer"
+      ],
+      "citation_types_contains": ["query_result"],
+      "citation_result_kind": "analytics",
+      "analysis_type": "co_occurrence",
+      "response_not_empty": 1
+    }
+  },
+  {
+    "case_id": "reject_unsupported_analytics_plan",
+    "mode": "debug_probe",
+    "assistant_mode": "hybrid",
+    "question": "Show sales by week.",
+    "route": {
+      "selected_intent": "structured_query",
+      "confidence": 0.9,
+      "candidate_doctypes": ["Sales Invoice"],
+      "candidate_reports": [],
+      "reason": "manual phase4e debug route",
+      "router_source": "manual"
+    },
+    "plan": {
+      "plan_version": "phase4c_foundation_v1",
+      "planner_mode": "phase4e_manual_matrix",
+      "intent": "analytics_query",
+      "analysis_type": "unsupported_custom",
+      "source_doctype": "Sales Invoice",
+      "metrics": ["sales_amount"],
+      "dimensions": ["customer"],
+      "filters": [
+        {"field": "docstatus", "operator": "=", "value": 1},
+        {"field": "posting_date", "operator": "between", "value": ["2000-01-01", "2099-12-31"]}
+      ],
+      "limit": 10,
+      "final_answer_shape": "ranking"
+    },
+    "execute": 0,
+    "expected": {
+      "handled": 0,
+      "fallback_reason": "unsupported_plan",
+      "operations_contains": ["hybrid.supported_plan_check", "hybrid.fallback"]
+    }
+  },
+  {
+    "case_id": "reject_disallowed_child_table",
+    "mode": "debug_probe",
+    "assistant_mode": "hybrid",
+    "question": "What are the most sold item pairs?",
+    "route": {
+      "selected_intent": "structured_query",
+      "confidence": 0.9,
+      "candidate_doctypes": ["Sales Invoice"],
+      "candidate_reports": [],
+      "reason": "manual phase4e debug route",
+      "router_source": "manual"
+    },
+    "policy_overrides": {
+      "Sales Invoice": {
+        "allow_query_builder": 0,
+        "allow_child_tables": 0
+      }
+    },
+    "plan": {
+      "plan_version": "phase4c_foundation_v1",
+      "planner_mode": "phase4e_manual_matrix",
+      "intent": "analytics_query",
+      "analysis_type": "co_occurrence",
+      "source_doctype": "Sales Invoice",
+      "relationships": ["sales_invoice_items"],
+      "dimensions": ["Sales Invoice Item.item_code"],
+      "filters": [
+        {"field": "docstatus", "operator": "=", "value": 1},
+        {"field": "posting_date", "operator": "between", "value": ["2000-01-01", "2099-12-31"]}
+      ],
+      "limit": 10,
+      "final_answer_shape": "ranking"
+    },
+    "execute": 0,
+    "expected": {
+      "handled": 0,
+      "fallback_reason": "validation_rejection",
+      "operations_contains": ["analytics.validator.validate_plan", "hybrid.fallback"]
+    }
+  },
+  {
+    "case_id": "fallback_to_v1_when_analytics_cannot_safely_answer",
+    "mode": "debug_probe",
+    "assistant_mode": "hybrid",
+    "question": "Show sales by week.",
+    "route": {
+      "selected_intent": "structured_query",
+      "confidence": 0.9,
+      "candidate_doctypes": ["Sales Invoice"],
+      "candidate_reports": [],
+      "reason": "manual phase4e debug route",
+      "router_source": "manual"
+    },
+    "plan": {
+      "plan_version": "phase4c_foundation_v1",
+      "planner_mode": "phase4e_manual_matrix",
+      "intent": "analytics_query",
+      "analysis_type": "time_bucket_aggregate",
+      "source_doctype": "Sales Invoice",
+      "metrics": ["sales_amount"],
+      "filters": [
+        {"field": "docstatus", "operator": "=", "value": 1},
+        {"field": "posting_date", "operator": "between", "value": ["2000-01-01", "2099-12-31"]}
+      ],
+      "time_bucket": {"date_field": "posting_date", "grain": "week"},
+      "limit": 20,
+      "final_answer_shape": "time_series"
+    },
+    "execute": 1,
+    "expected": {
+      "handled": 0,
+      "fallback_reason": "execution_unsupported",
+      "operations_contains": [
+        "analytics.validator.validate_plan",
+        "analytics.executor.execute_validated_analytics_plan",
+        "hybrid.fallback"
+      ]
+    }
+  },
+  {
+    "case_id": "assistant_mode_v1_bypasses_analytics",
+    "mode": "live_chat",
+    "assistant_mode": "v1",
+    "question": "Show the top customers by sales.",
+    "expected": {
+      "message_status": "Completed",
+      "no_tool_logs": 1,
+      "response_not_empty": 1
+    }
+  },
+  {
+    "case_id": "hybrid_normal_structured_get_list_works",
+    "mode": "live_chat",
+    "assistant_mode": "hybrid",
+    "question": "List recent sales invoices since 2026-01-01.",
+    "expected": {
+      "message_status": "Completed",
+      "operations_contains": [
+        "planner.plan_structured_query",
+        "validator.validate_plan",
+        "executor.get_list.execute_validated_plan",
+        "composer.compose_structured_answer"
+      ],
+      "operations_not_contains": [
+        "planner.plan_analytics_query",
+        "analytics.validator.validate_plan",
+        "analytics.executor.execute_validated_analytics_plan",
+        "composer.compose_analytics_answer"
+      ],
+      "citation_types_contains": ["query_result"],
+      "response_not_empty": 1
+    }
+  },
+  {
+    "case_id": "F01_vague_analytics_question_falls_back",
+    "mode": "live_chat",
+    "assistant_mode": "hybrid",
+    "question": "Show sales analytics.",
+    "expected": {
+      "message_status": "Completed",
+      "operations_contains": ["hybrid.fallback"],
+      "operations_not_contains": [
+        "planner.plan_analytics_query",
+        "analytics.validator.validate_plan",
+        "analytics.executor.execute_validated_analytics_plan",
+        "composer.compose_analytics_answer"
+      ],
+      "response_not_empty": 1
+    }
+  },
+  {
+    "case_id": "F02_unauthorized_source_doctype_rejected",
+    "mode": "debug_probe",
+    "assistant_mode": "hybrid",
+    "question": "Show stock movement by warehouse.",
+    "route": {
+      "selected_intent": "structured_query",
+      "confidence": 0.92,
+      "candidate_doctypes": ["Stock Ledger Entry"],
+      "candidate_reports": [],
+      "reason": "manual phase4f debug route",
+      "router_source": "manual"
+    },
+    "plan": {
+      "plan_version": "phase4c_foundation_v1",
+      "planner_mode": "phase4f_manual_matrix",
+      "intent": "analytics_query",
+      "analysis_type": "top_n",
+      "source_doctype": "Stock Ledger Entry",
+      "metrics": ["movement_qty"],
+      "dimensions": ["warehouse"],
+      "filters": [
+        {"field": "posting_date", "operator": "between", "value": ["2026-01-01", "2026-12-31"]}
+      ],
+      "limit": 10,
+      "final_answer_shape": "ranking"
+    },
+    "execute": 0,
+    "expected": {
+      "handled": 0,
+      "fallback_reason": "validation_rejection",
+      "operations_contains": ["analytics.validator.validate_plan", "hybrid.fallback"],
+      "error_contains": "Phase 4F analytics"
+    }
+  },
+  {
+    "case_id": "F03_unapproved_analytics_field_rejected",
+    "mode": "debug_probe",
+    "assistant_mode": "hybrid",
+    "question": "Show sales by posting date.",
+    "route": {
+      "selected_intent": "structured_query",
+      "confidence": 0.92,
+      "candidate_doctypes": ["Sales Invoice"],
+      "candidate_reports": [],
+      "reason": "manual phase4f debug route",
+      "router_source": "manual"
+    },
+    "plan": {
+      "plan_version": "phase4c_foundation_v1",
+      "planner_mode": "phase4f_manual_matrix",
+      "intent": "analytics_query",
+      "analysis_type": "top_n",
+      "source_doctype": "Sales Invoice",
+      "metrics": ["sales_amount"],
+      "dimensions": ["posting_date"],
+      "filters": [
+        {"field": "docstatus", "operator": "=", "value": 1},
+        {"field": "posting_date", "operator": "between", "value": ["2026-01-01", "2026-12-31"]}
+      ],
+      "limit": 10,
+      "final_answer_shape": "ranking"
+    },
+    "execute": 0,
+    "expected": {
+      "handled": 0,
+      "fallback_reason": "validation_rejection",
+      "operations_contains": ["analytics.validator.validate_plan", "hybrid.fallback"],
+      "error_contains": "analytics dimension"
+    }
+  },
+  {
+    "case_id": "F04_missing_required_date_filter_rejected",
+    "mode": "debug_probe",
+    "assistant_mode": "hybrid",
+    "question": "Show the top customers by sales.",
+    "policy_overrides": {
+      "Sales Invoice": {
+        "large_table_requires_date_filter": 1,
+        "default_date_field": "posting_date"
+      }
+    },
+    "route": {
+      "selected_intent": "structured_query",
+      "confidence": 0.92,
+      "candidate_doctypes": ["Sales Invoice"],
+      "candidate_reports": [],
+      "reason": "manual phase4f debug route",
+      "router_source": "manual"
+    },
+    "plan": {
+      "plan_version": "phase4c_foundation_v1",
+      "planner_mode": "phase4f_manual_matrix",
+      "intent": "analytics_query",
+      "analysis_type": "top_n",
+      "source_doctype": "Sales Invoice",
+      "metrics": ["sales_amount"],
+      "dimensions": ["customer"],
+      "filters": [
+        {"field": "docstatus", "operator": "=", "value": 1}
+      ],
+      "limit": 10,
+      "final_answer_shape": "ranking"
+    },
+    "execute": 0,
+    "expected": {
+      "handled": 0,
+      "fallback_reason": "validation_rejection",
+      "operations_contains": ["analytics.validator.validate_plan", "hybrid.fallback"],
+      "error_contains": "requires a filter on 'posting_date'"
+    }
+  },
+  {
+    "case_id": "F05_large_limit_is_capped",
+    "mode": "debug_probe",
+    "assistant_mode": "hybrid",
+    "question": "Show the top customers by sales this year.",
+    "route": {
+      "selected_intent": "structured_query",
+      "confidence": 0.92,
+      "candidate_doctypes": ["Sales Invoice"],
+      "candidate_reports": [],
+      "reason": "manual phase4f debug route",
+      "router_source": "manual"
+    },
+    "plan": {
+      "plan_version": "phase4c_foundation_v1",
+      "planner_mode": "phase4f_manual_matrix",
+      "intent": "analytics_query",
+      "analysis_type": "top_n",
+      "source_doctype": "Sales Invoice",
+      "metrics": ["sales_amount"],
+      "dimensions": ["customer"],
+      "filters": [
+        {"field": "docstatus", "operator": "=", "value": 1},
+        {"field": "posting_date", "operator": "between", "value": ["2026-01-01", "2026-12-31"]}
+      ],
+      "limit": 999,
+      "final_answer_shape": "ranking"
+    },
+    "execute": 0,
+    "expected": {
+      "handled": 1,
+      "validated_plan_limit": 10,
+      "operations_contains": ["analytics.validator.validate_plan"],
+      "analysis_type": "top_n"
+    }
+  },
+  {
+    "case_id": "F06_empty_result_returns_grounded_no_data",
+    "mode": "live_chat",
+    "assistant_mode": "hybrid",
+    "question": "Show sales by month for 2099.",
+    "expected": {
+      "message_status": "Completed",
+      "operations_contains": [
+        "planner.plan_analytics_query",
+        "analytics.validator.validate_plan",
+        "analytics.executor.execute_validated_analytics_plan",
+        "composer.compose_analytics_answer"
+      ],
+      "citation_result_kind": "analytics",
+      "analysis_type": "time_bucket_aggregate",
+      "assistant_contains": "No matching Sales Invoice analytics data was found",
+      "tool_log_detail_matches": [
+        {
+          "operation": "composer.compose_analytics_answer",
+          "status": "Success",
+          "details": {
+            "composer_mode": "deterministic_no_data"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "case_id": "F07_arabic_analytics_question",
+    "mode": "live_chat",
+    "assistant_mode": "hybrid",
+    "question": "اعرض المبيعات حسب الشهر.",
+    "expected": {
+      "message_status": "Completed",
+      "operations_contains": [
+        "planner.plan_analytics_query",
+        "analytics.validator.validate_plan",
+        "analytics.executor.execute_validated_analytics_plan",
+        "composer.compose_analytics_answer"
+      ],
+      "citation_result_kind": "analytics",
+      "analysis_type": "time_bucket_aggregate",
+      "response_not_empty": 1
+    }
+  },
+  {
+    "case_id": "F08_help_question_bypasses_to_v1",
+    "mode": "live_chat",
+    "assistant_mode": "hybrid",
+    "question": "How do I create a Sales Invoice?",
+    "expected": {
+      "message_status": "Completed",
+      "operations_contains": ["hybrid.fallback"],
+      "operations_not_contains": [
+        "planner.plan_analytics_query",
+        "analytics.validator.validate_plan",
+        "analytics.executor.execute_validated_analytics_plan",
+        "composer.compose_analytics_answer"
+      ],
+      "response_not_empty": 1
+    }
+  },
+  {
+    "case_id": "F09_permission_rejection_returns_safe_denial",
+    "mode": "live_chat",
+    "assistant_mode": "hybrid",
+    "question": "Show the top customers by sales.",
+    "test_faults": {
+      "permission_denied": 1
+    },
+    "expected": {
+      "message_status": "Completed",
+      "operations_contains": [
+        "planner.plan_analytics_query",
+        "analytics.validator.validate_plan",
+        "analytics.executor.execute_validated_analytics_plan",
+        "composer.compose_analytics_answer"
+      ],
+      "citation_result_kind": "analytics",
+      "assistant_contains": "You do not have permission to read Sales Invoice analytics data.",
+      "tool_log_detail_matches": [
+        {
+          "operation": "composer.compose_analytics_answer",
+          "status": "Success",
+          "details": {
+            "composer_mode": "deterministic_permission_denied"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "case_id": "F10_bad_planner_json_falls_back",
+    "mode": "live_chat",
+    "assistant_mode": "hybrid",
+    "question": "Show the top customers by sales.",
+    "test_faults": {
+      "bad_planner_json": 1
+    },
+    "expected": {
+      "message_status": "Completed",
+      "operations_contains": [
+        "planner.plan_hybrid_query",
+        "hybrid.fallback"
+      ],
+      "operations_not_contains": [
+        "planner.plan_analytics_query",
+        "analytics.validator.validate_plan",
+        "analytics.executor.execute_validated_analytics_plan",
+        "composer.compose_analytics_answer"
+      ],
+      "response_not_empty": 1,
+      "tool_log_detail_matches": [
+        {
+          "operation": "planner.plan_hybrid_query",
+          "status": "Rejected",
+          "details": {
+            "error_code": "planner_invalid_json"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "case_id": "F11_planner_timeout_falls_back",
+    "mode": "live_chat",
+    "assistant_mode": "hybrid",
+    "question": "Show the top customers by sales.",
+    "test_faults": {
+      "planner_timeout": 1
+    },
+    "expected": {
+      "message_status": "Completed",
+      "operations_contains": [
+        "planner.plan_hybrid_query",
+        "hybrid.fallback"
+      ],
+      "operations_not_contains": [
+        "planner.plan_analytics_query",
+        "analytics.validator.validate_plan",
+        "analytics.executor.execute_validated_analytics_plan",
+        "composer.compose_analytics_answer"
+      ],
+      "response_not_empty": 1
+    }
+  },
+  {
+    "case_id": "F12_composer_timeout_uses_deterministic_fallback",
+    "mode": "live_chat",
+    "assistant_mode": "hybrid",
+    "question": "Show the top customers by sales.",
+    "test_faults": {
+      "composer_timeout": 1
+    },
+    "expected": {
+      "message_status": "Completed",
+      "operations_contains": [
+        "planner.plan_analytics_query",
+        "analytics.validator.validate_plan",
+        "analytics.executor.execute_validated_analytics_plan",
+        "composer.compose_analytics_answer"
+      ],
+      "citation_result_kind": "analytics",
+      "assistant_contains": "I found",
+      "tool_log_detail_matches": [
+        {
+          "operation": "composer.compose_analytics_answer",
+          "status": "Success",
+          "details": {
+            "composer_mode": "deterministic_fallback"
+          }
+        }
+      ]
+    }
+  }
+]

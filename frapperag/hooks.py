@@ -1,9 +1,9 @@
 from frapperag.rag.legacy_vector_policy import LEGACY_VECTOR_DOCTYPES
 
 app_name      = "frapperag"
-app_title     = "FrappeRAG"
+app_title     = "FrappeAI Assistant"
 app_publisher = "Mahmoud Hussein"
-app_description = "RAG embedding pipeline for Frappe / ERPNext"
+app_description = "AI assistant for Frappe / ERPNext with optional legacy vector compatibility"
 app_email     = "mahmudhussain2001ab@gmail.com"
 app_license   = "mit"
 

@@ -72,7 +72,7 @@ function _render_active_prefix_banner(frm) {
             }
             if (populated_tables.length === 0 && expected_doctypes.length > 0) {
                 frm.dashboard.add_indicator(
-                    __("Active embedding prefix is empty — run Legacy Index All to populate legacy vector tables"),
+                    __("AI Assistant's active embedding prefix is empty — run Legacy Index All to populate legacy vector tables"),
                     "orange"
                 );
             }
@@ -151,7 +151,7 @@ function _subscribe_install_progress(job_id, dlg, frm) {
             frappe.realtime.off("rag_local_model_install_progress", handler);
             if (data.ok) {
                 $bar.removeClass("active").addClass("progress-bar-success");
-                $status.html(`<span class="text-success">${__("Install successful — click Save to persist Embedding Provider = e5-small, then restart the sidecar and run Legacy Index All.")}</span>`);
+                $status.html(`<span class="text-success">${__("Install successful — click Save to persist Embedding Provider = e5-small, then restart the sidecar and run Legacy Index All for FrappeAI Assistant.")}</span>`);
                 dlg.set_primary_action(__("Close"), () => dlg.hide());
                 dlg.enable_primary_action();
             } else {

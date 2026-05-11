@@ -17,7 +17,7 @@ class AIAssistantSettings(Document):
         # T023: non-blocking warning — save proceeds normally
         if not self.allowed_doctypes:
             frappe.msgprint(
-                _("No ERP DocTypes are configured. Live querying, analytics policy, and legacy manual indexing will have no targets."),
+                _("No ERP DocTypes are configured. Live querying, allowed AI reports, and legacy manual indexing will have no targets."),
                 indicator="orange",
                 alert=True,
             )
@@ -47,7 +47,7 @@ class AIAssistantSettings(Document):
             rtype = frappe.db.get_value("Report", row.report, "report_type")
             if rtype != "Report Builder":
                 frappe.throw(
-                    f"Allowed Reports row {i + 1}: '{row.report}' is a {rtype}. "
+                    f"Allowed AI Reports row {i + 1}: '{row.report}' is a {rtype}. "
                     "Only Report Builder reports are permitted.",
                     frappe.ValidationError,
                 )
@@ -63,13 +63,13 @@ class AIAssistantSettings(Document):
                 parsed = json.loads(row.default_filters)
             except json.JSONDecodeError as exc:
                 frappe.throw(
-                    f"Allowed Reports row {i + 1} ({row.report}): "
+                    f"Allowed AI Reports row {i + 1} ({row.report}): "
                     f"Default Filters is not valid JSON — {exc}",
                     frappe.ValidationError,
                 )
             if not isinstance(parsed, dict):
                 frappe.throw(
-                    f"Allowed Reports row {i + 1} ({row.report}): "
+                    f"Allowed AI Reports row {i + 1} ({row.report}): "
                     "Default Filters must be a JSON object {}, not an array or scalar.",
                     frappe.ValidationError,
                 )
@@ -81,7 +81,7 @@ class AIAssistantSettings(Document):
         _seen_agg = set()
 
         for i, row in enumerate(self.aggregate_fields or []):
-            label = f"Aggregate Fields row {i + 1}"
+            label = f"Queryable Fields / Aggregate Policy row {i + 1}"
 
             # AF-001: doctype must be in allowed_doctypes
             if row.doctype_name not in _allowed_doctype_names:

@@ -1,4 +1,4 @@
-"""RAG Sidecar — FastAPI application.
+"""FrappeAI Assistant sidecar — FastAPI application.
 
 Started by `bench start` via the Procfile entry added by after_install().
 Binds to localhost only (Constitution Principle IV).
@@ -338,7 +338,7 @@ async def lifespan(app: FastAPI):
 # FastAPI application
 # ---------------------------------------------------------------------------
 
-app = FastAPI(title="FrappeRAG Sidecar", lifespan=lifespan)
+app = FastAPI(title="FrappeAI Assistant Sidecar", lifespan=lifespan)
 
 
 # ---------------------------------------------------------------------------
@@ -993,7 +993,7 @@ if __name__ == "__main__":
     import argparse
     import uvicorn
 
-    parser = argparse.ArgumentParser(description="FrappeRAG sidecar process")
+    parser = argparse.ArgumentParser(description="FrappeAI Assistant sidecar process")
     parser.add_argument("--port", type=int, default=8100, help="Port to listen on (localhost only)")
     parser.add_argument("--rag-dir", type=str, default="", help="Path to bench-level rag/ directory")
     args = parser.parse_args()

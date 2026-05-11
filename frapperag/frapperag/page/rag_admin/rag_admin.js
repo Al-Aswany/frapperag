@@ -8,7 +8,7 @@ frappe.pages["rag-admin"].on_page_load = function (wrapper) {
 	$(`
 		<div class="rag-admin-form" style="padding: 20px;">
 			<p class="text-muted" style="max-width:720px; margin-bottom:16px;">
-				Legacy vector indexing is for manual compatibility maintenance and v1 fallback support.
+				Legacy vector indexing is for manual compatibility maintenance and v1 fallback support in FrappeAI Assistant.
 				Live ERP querying remains the primary structured-data path.
 			</p>
 			<div class="form-group">

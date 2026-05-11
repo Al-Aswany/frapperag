@@ -14,7 +14,7 @@
    "fieldname": "report",
    "fieldtype": "Link",
    "in_list_view": 1,
-   "label": "Report",
+   "label": "AI Report",
    "options": "Report",
    "reqd": 1
   },
@@ -22,7 +22,7 @@
    "fieldname": "description",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Description"
+   "label": "Prompt Description"
   },
   {
    "fieldname": "default_filters",
@@ -34,7 +34,7 @@
  "index_web_pages_for_search": 0,
  "istable": 1,
  "links": [],
- "modified": "2026-04-09 00:00:00.000000",
+ "modified": "2026-05-11 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "FrappeRAG",
  "name": "RAG Allowed Report",

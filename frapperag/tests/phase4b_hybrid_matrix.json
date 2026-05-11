@@ -1,0 +1,378 @@
+[
+  {
+    "case_id": "customer_list",
+    "category": "safe_get_list",
+    "question": "List 5 customers",
+    "route": {
+      "selected_intent": "structured_query",
+      "confidence": 0.9,
+      "candidate_doctypes": ["Customer"],
+      "candidate_reports": [],
+      "reason": "manual matrix",
+      "router_source": "manual"
+    },
+    "plan": {
+      "plan_version": "phase3_v1",
+      "planner_mode": "phase4b_manual_matrix",
+      "request_id": "phase4b-customer-list",
+      "intent": "structured_query",
+      "confidence": 0.9,
+      "question": "List 5 customers",
+      "steps": [
+        {
+          "step_id": "step_1",
+          "tool": "get_list",
+          "doctype": "Customer",
+          "fields": ["name", "customer_name", "customer_group", "territory", "modified"],
+          "limit": 5,
+          "order_by": {"field": "modified", "direction": "desc"}
+        }
+      ],
+      "final_answer_shape": "table",
+      "needs_clarification": 0,
+      "clarification_question": ""
+    },
+    "execute": 1,
+    "expected": {
+      "handled": 1,
+      "doctype": "Customer"
+    }
+  },
+  {
+    "case_id": "sales_invoice_list_with_date_filter",
+    "category": "safe_get_list",
+    "question": "List recent sales invoices since 2026-01-01",
+    "route": {
+      "selected_intent": "structured_query",
+      "confidence": 0.9,
+      "candidate_doctypes": ["Sales Invoice"],
+      "candidate_reports": [],
+      "reason": "manual matrix",
+      "router_source": "manual"
+    },
+    "plan": {
+      "plan_version": "phase3_v1",
+      "planner_mode": "phase4b_manual_matrix",
+      "request_id": "phase4b-sales-invoice-date-filter",
+      "intent": "structured_query",
+      "confidence": 0.9,
+      "question": "List recent sales invoices since 2026-01-01",
+      "steps": [
+        {
+          "step_id": "step_1",
+          "tool": "get_list",
+          "doctype": "Sales Invoice",
+          "fields": ["name", "customer", "posting_date", "grand_total", "status"],
+          "filters": [
+            {"field": "posting_date", "operator": ">=", "value": "2026-01-01"}
+          ],
+          "limit": 5,
+          "order_by": {"field": "posting_date", "direction": "desc"}
+        }
+      ],
+      "final_answer_shape": "table",
+      "needs_clarification": 0,
+      "clarification_question": ""
+    },
+    "execute": 1,
+    "expected": {
+      "handled": 1,
+      "doctype": "Sales Invoice"
+    }
+  },
+  {
+    "case_id": "sales_invoice_latest_records",
+    "category": "safe_get_list",
+    "question": "List the latest 3 sales invoices",
+    "route": {
+      "selected_intent": "structured_query",
+      "confidence": 0.9,
+      "candidate_doctypes": ["Sales Invoice"],
+      "candidate_reports": [],
+      "reason": "manual matrix",
+      "router_source": "manual"
+    },
+    "plan": {
+      "plan_version": "phase3_v1",
+      "planner_mode": "phase4b_manual_matrix",
+      "request_id": "phase4b-sales-invoice-latest",
+      "intent": "structured_query",
+      "confidence": 0.9,
+      "question": "List the latest 3 sales invoices",
+      "steps": [
+        {
+          "step_id": "step_1",
+          "tool": "get_list",
+          "doctype": "Sales Invoice",
+          "fields": ["name", "customer", "posting_date", "grand_total", "status"],
+          "limit": 3,
+          "order_by": {"field": "posting_date", "direction": "desc"}
+        }
+      ],
+      "final_answer_shape": "table",
+      "needs_clarification": 0,
+      "clarification_question": ""
+    },
+    "execute": 1,
+    "expected": {
+      "handled": 1,
+      "doctype": "Sales Invoice"
+    }
+  },
+  {
+    "case_id": "item_list",
+    "category": "safe_get_list",
+    "question": "List 5 items",
+    "route": {
+      "selected_intent": "structured_query",
+      "confidence": 0.9,
+      "candidate_doctypes": ["Item"],
+      "candidate_reports": [],
+      "reason": "manual matrix",
+      "router_source": "manual"
+    },
+    "plan": {
+      "plan_version": "phase3_v1",
+      "planner_mode": "phase4b_manual_matrix",
+      "request_id": "phase4b-item-list",
+      "intent": "structured_query",
+      "confidence": 0.9,
+      "question": "List 5 items",
+      "steps": [
+        {
+          "step_id": "step_1",
+          "tool": "get_list",
+          "doctype": "Item",
+          "fields": ["name", "item_code", "item_name", "item_group", "stock_uom"],
+          "limit": 5,
+          "order_by": {"field": "modified", "direction": "desc"}
+        }
+      ],
+      "final_answer_shape": "table",
+      "needs_clarification": 0,
+      "clarification_question": ""
+    },
+    "execute": 1,
+    "expected": {
+      "handled": 1,
+      "doctype": "Item"
+    }
+  },
+  {
+    "case_id": "supplier_list",
+    "category": "safe_get_list",
+    "question": "List 5 suppliers",
+    "route": {
+      "selected_intent": "structured_query",
+      "confidence": 0.9,
+      "candidate_doctypes": ["Supplier"],
+      "candidate_reports": [],
+      "reason": "manual matrix",
+      "router_source": "manual"
+    },
+    "plan": {
+      "plan_version": "phase3_v1",
+      "planner_mode": "phase4b_manual_matrix",
+      "request_id": "phase4b-supplier-list",
+      "intent": "structured_query",
+      "confidence": 0.9,
+      "question": "List 5 suppliers",
+      "steps": [
+        {
+          "step_id": "step_1",
+          "tool": "get_list",
+          "doctype": "Supplier",
+          "fields": ["name", "supplier_name", "supplier_group", "country", "modified"],
+          "limit": 5,
+          "order_by": {"field": "modified", "direction": "desc"}
+        }
+      ],
+      "final_answer_shape": "table",
+      "needs_clarification": 0,
+      "clarification_question": ""
+    },
+    "execute": 1,
+    "expected": {
+      "handled": 1,
+      "doctype": "Supplier"
+    }
+  },
+  {
+    "case_id": "unsafe_field_rejection",
+    "category": "rejection",
+    "question": "List sales invoices with line items",
+    "route": {
+      "selected_intent": "structured_query",
+      "confidence": 0.9,
+      "candidate_doctypes": ["Sales Invoice"],
+      "candidate_reports": [],
+      "reason": "manual matrix",
+      "router_source": "manual"
+    },
+    "plan": {
+      "plan_version": "phase3_v1",
+      "planner_mode": "phase4b_manual_matrix",
+      "request_id": "phase4b-unsafe-field",
+      "intent": "structured_query",
+      "confidence": 0.9,
+      "question": "List sales invoices with line items",
+      "steps": [
+        {
+          "step_id": "step_1",
+          "tool": "get_list",
+          "doctype": "Sales Invoice",
+          "fields": ["name", "items"],
+          "limit": 5
+        }
+      ],
+      "final_answer_shape": "table",
+      "needs_clarification": 0,
+      "clarification_question": ""
+    },
+    "execute": 0,
+    "expected": {
+      "handled": 0,
+      "fallback_reason": "validation_rejection",
+      "error_contains": "field 'items' is not allowed"
+    }
+  },
+  {
+    "case_id": "disabled_doctype_rejection",
+    "category": "rejection",
+    "question": "List 5 users",
+    "route": {
+      "selected_intent": "structured_query",
+      "confidence": 0.9,
+      "candidate_doctypes": ["User"],
+      "candidate_reports": [],
+      "reason": "manual matrix",
+      "router_source": "manual"
+    },
+    "plan": {
+      "plan_version": "phase3_v1",
+      "planner_mode": "phase4b_manual_matrix",
+      "request_id": "phase4b-disabled-doctype",
+      "intent": "structured_query",
+      "confidence": 0.9,
+      "question": "List 5 users",
+      "steps": [
+        {
+          "step_id": "step_1",
+          "tool": "get_list",
+          "doctype": "User",
+          "fields": ["name"],
+          "limit": 5
+        }
+      ],
+      "final_answer_shape": "table",
+      "needs_clarification": 0,
+      "clarification_question": ""
+    },
+    "execute": 0,
+    "expected": {
+      "handled": 0,
+      "fallback_reason": "validation_rejection",
+      "error_contains": "DocType 'User' is not enabled"
+    }
+  },
+  {
+    "case_id": "excessive_limit_rejection",
+    "category": "rejection",
+    "question": "List 500 customers",
+    "route": {
+      "selected_intent": "structured_query",
+      "confidence": 0.9,
+      "candidate_doctypes": ["Customer"],
+      "candidate_reports": [],
+      "reason": "manual matrix",
+      "router_source": "manual"
+    },
+    "plan": {
+      "plan_version": "phase3_v1",
+      "planner_mode": "phase4b_manual_matrix",
+      "request_id": "phase4b-excessive-limit",
+      "intent": "structured_query",
+      "confidence": 0.9,
+      "question": "List 500 customers",
+      "steps": [
+        {
+          "step_id": "step_1",
+          "tool": "get_list",
+          "doctype": "Customer",
+          "fields": ["name", "customer_name"],
+          "limit": 500
+        }
+      ],
+      "final_answer_shape": "table",
+      "needs_clarification": 0,
+      "clarification_question": ""
+    },
+    "execute": 0,
+    "expected": {
+      "handled": 0,
+      "fallback_reason": "validation_rejection",
+      "error_contains": "limit must be between 1 and 200"
+    }
+  },
+  {
+    "case_id": "child_table_query_rejection_fallback",
+    "category": "fallback",
+    "question": "List the items on sales invoice INV-0001",
+    "route": {
+      "selected_intent": "structured_query",
+      "confidence": 0.9,
+      "candidate_doctypes": ["Sales Invoice", "Item"],
+      "candidate_reports": [],
+      "reason": "manual matrix",
+      "router_source": "manual"
+    },
+    "plan": {
+      "plan_version": "phase3_v1",
+      "planner_mode": "phase4b_manual_matrix",
+      "request_id": "phase4b-child-table",
+      "intent": "structured_query",
+      "confidence": 0.9,
+      "question": "List the items on sales invoice INV-0001",
+      "steps": [
+        {
+          "step_id": "step_1",
+          "tool": "get_list",
+          "doctype": "Sales Invoice Item",
+          "fields": ["name", "item_code", "qty"],
+          "limit": 5
+        }
+      ],
+      "final_answer_shape": "table",
+      "needs_clarification": 0,
+      "clarification_question": ""
+    },
+    "execute": 0,
+    "expected": {
+      "handled": 0,
+      "fallback_reason": "validation_rejection",
+      "error_contains": "Sales Invoice Item"
+    }
+  },
+  {
+    "case_id": "unclear_query_fallback",
+    "category": "fallback",
+    "question": "What should I look at?",
+    "execute": 0,
+    "expected": {
+      "handled": 0,
+      "fallback_reason": "non_structured",
+      "route_intent": "unclear"
+    }
+  },
+  {
+    "case_id": "non_structured_query_fallback",
+    "category": "fallback",
+    "question": "Summarize the leave policy PDF",
+    "execute": 0,
+    "expected": {
+      "handled": 0,
+      "fallback_reason": "non_structured",
+      "route_intent": "document_rag"
+    }
+  }
+]

@@ -3,7 +3,7 @@ name = "frapperag"
 authors = [
     { name = "Mahmoud Hussein", email = "mahmudhussain2001ab@gmail.com"}
 ]
-description = "app for Frappe AI Assist"
+description = "FrappeAI Assistant for Frappe and ERPNext"
 requires-python = ">=3.10"
 readme = "README.md"
 dynamic = ["version"]
@@ -14,6 +14,11 @@ dependencies = [
     "httpx",
     "google-genai",
 ]
+
+[project.urls]
+Homepage = "https://github.com/Al-Aswany/FrappeAI-Assistant"
+Repository = "https://github.com/Al-Aswany/FrappeAI-Assistant"
+Issues = "https://github.com/Al-Aswany/FrappeAI-Assistant/issues"
 
 [project.optional-dependencies]
 legacy-vector = [

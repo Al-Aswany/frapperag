@@ -1,0 +1,322 @@
+[
+  {
+    "case_id": "A01_top_customers_by_sales",
+    "category": "success",
+    "plan": {
+      "plan_version": "phase4c_foundation_v1",
+      "analysis_type": "top_n",
+      "source_doctype": "Sales Invoice",
+      "metrics": ["sales_amount"],
+      "dimensions": ["customer"],
+      "filters": [
+        {"field": "docstatus", "operator": "=", "value": 1},
+        {"field": "posting_date", "operator": "between", "value": ["2000-01-01", "2099-12-31"]}
+      ],
+      "limit": 10,
+      "sort": [{"by": "metric", "name": "sales_amount", "direction": "desc"}],
+      "final_answer_shape": "ranking"
+    },
+    "expected": {
+      "status": "success",
+      "analysis_type": "top_n",
+      "columns_contains": ["customer", "sales_amount"]
+    }
+  },
+  {
+    "case_id": "A02_sales_by_month",
+    "category": "success",
+    "plan": {
+      "plan_version": "phase4c_foundation_v1",
+      "analysis_type": "time_bucket_aggregate",
+      "source_doctype": "Sales Invoice",
+      "metrics": ["sales_amount"],
+      "filters": [
+        {"field": "docstatus", "operator": "=", "value": 1},
+        {"field": "posting_date", "operator": "between", "value": ["2000-01-01", "2099-12-31"]}
+      ],
+      "time_bucket": {"date_field": "posting_date", "grain": "month"},
+      "limit": 20,
+      "final_answer_shape": "time_series"
+    },
+    "expected": {
+      "status": "success",
+      "analysis_type": "time_bucket_aggregate",
+      "columns_contains": ["time_bucket", "sales_amount"]
+    }
+  },
+  {
+    "case_id": "A03_unpaid_invoices_by_customer",
+    "category": "success",
+    "plan": {
+      "plan_version": "phase4c_foundation_v1",
+      "analysis_type": "top_n",
+      "source_doctype": "Sales Invoice",
+      "metrics": ["outstanding_amount"],
+      "dimensions": ["customer"],
+      "filters": [
+        {"field": "docstatus", "operator": "=", "value": 1},
+        {"field": "posting_date", "operator": "between", "value": ["2000-01-01", "2099-12-31"]}
+      ],
+      "limit": 10,
+      "sort": [{"by": "metric", "name": "outstanding_amount", "direction": "desc"}],
+      "final_answer_shape": "ranking"
+    },
+    "expected": {
+      "status": "success",
+      "analysis_type": "top_n",
+      "columns_contains": ["customer", "outstanding_amount"]
+    }
+  },
+  {
+    "case_id": "A04_purchase_amount_by_supplier",
+    "category": "success",
+    "plan": {
+      "plan_version": "phase4c_foundation_v1",
+      "analysis_type": "top_n",
+      "source_doctype": "Purchase Invoice",
+      "metrics": ["purchase_amount"],
+      "dimensions": ["supplier"],
+      "filters": [
+        {"field": "docstatus", "operator": "=", "value": 1},
+        {"field": "posting_date", "operator": "between", "value": ["2000-01-01", "2099-12-31"]}
+      ],
+      "limit": 10,
+      "sort": [{"by": "metric", "name": "purchase_amount", "direction": "desc"}],
+      "final_answer_shape": "ranking"
+    },
+    "expected": {
+      "status": "success",
+      "analysis_type": "top_n",
+      "columns_contains": ["supplier", "purchase_amount"]
+    }
+  },
+  {
+    "case_id": "A05_overall_unpaid_ratio",
+    "category": "success",
+    "plan": {
+      "plan_version": "phase4c_foundation_v1",
+      "analysis_type": "ratio",
+      "source_doctype": "Sales Invoice",
+      "numerator_metric": "outstanding_amount",
+      "denominator_metric": "sales_amount",
+      "filters": [
+        {"field": "docstatus", "operator": "=", "value": 1},
+        {"field": "posting_date", "operator": "between", "value": ["2000-01-01", "2099-12-31"]}
+      ],
+      "limit": 1,
+      "final_answer_shape": "number"
+    },
+    "expected": {
+      "status": "success",
+      "analysis_type": "ratio",
+      "columns_contains": ["outstanding_amount", "sales_amount", "ratio"]
+    }
+  },
+  {
+    "case_id": "A06_customer_sales_decline",
+    "category": "success",
+    "plan": {
+      "plan_version": "phase4c_foundation_v1",
+      "analysis_type": "period_comparison",
+      "source_doctype": "Sales Invoice",
+      "metrics": ["sales_amount"],
+      "dimensions": ["customer"],
+      "filters": [{"field": "docstatus", "operator": "=", "value": 1}],
+      "comparison": {
+        "date_field": "posting_date",
+        "current": ["2025-01-01", "2025-12-31"],
+        "previous": ["2024-01-01", "2024-12-31"]
+      },
+      "limit": 10,
+      "final_answer_shape": "comparison"
+    },
+    "expected": {
+      "status": "success",
+      "analysis_type": "period_comparison",
+      "columns_contains": ["customer", "sales_amount_current", "sales_amount_previous", "sales_amount_delta"]
+    }
+  },
+  {
+    "case_id": "A07_sales_trend_by_month",
+    "category": "success",
+    "plan": {
+      "plan_version": "phase4c_foundation_v1",
+      "analysis_type": "trend",
+      "source_doctype": "Sales Invoice",
+      "metrics": ["sales_amount"],
+      "filters": [
+        {"field": "docstatus", "operator": "=", "value": 1},
+        {"field": "posting_date", "operator": "between", "value": ["2000-01-01", "2099-12-31"]}
+      ],
+      "time_bucket": {"date_field": "posting_date", "grain": "month"},
+      "limit": 20,
+      "final_answer_shape": "time_series"
+    },
+    "expected": {
+      "status": "success",
+      "analysis_type": "trend",
+      "columns_contains": ["time_bucket", "sales_amount"]
+    }
+  },
+  {
+    "case_id": "A08_unsupported_week_bucket",
+    "category": "unsupported",
+    "plan": {
+      "plan_version": "phase4c_foundation_v1",
+      "analysis_type": "time_bucket_aggregate",
+      "source_doctype": "Sales Invoice",
+      "metrics": ["sales_amount"],
+      "filters": [
+        {"field": "docstatus", "operator": "=", "value": 1},
+        {"field": "posting_date", "operator": "between", "value": ["2000-01-01", "2099-12-31"]}
+      ],
+      "time_bucket": {"date_field": "posting_date", "grain": "week"},
+      "limit": 20,
+      "final_answer_shape": "time_series"
+    },
+    "expected": {
+      "status": "unsupported",
+      "analysis_type": "time_bucket_aggregate",
+      "error_contains": "supports only day, month, and year"
+    }
+  },
+  {
+    "case_id": "A09_parent_child_rejected_by_policy",
+    "category": "rejected",
+    "policy_overrides": {
+      "Sales Invoice": {
+        "allow_query_builder": 0,
+        "allow_child_tables": 0
+      }
+    },
+    "plan": {
+      "plan_version": "phase4c_foundation_v1",
+      "analysis_type": "parent_child_aggregate",
+      "source_doctype": "Sales Invoice",
+      "relationships": ["sales_invoice_items"],
+      "metrics": ["sales_qty"],
+      "dimensions": ["Sales Invoice Item.item_code"],
+      "filters": [{"field": "posting_date", "operator": "between", "value": ["2000-01-01", "2099-12-31"]}],
+      "limit": 10,
+      "final_answer_shape": "table"
+    },
+    "expected": {
+      "status": "rejected",
+      "analysis_type": "parent_child_aggregate",
+      "error_contains": "does not allow relationship analytics"
+    }
+  },
+  {
+    "case_id": "A10_most_sold_item_pairs",
+    "category": "success",
+    "policy_overrides": {
+      "Sales Invoice": {
+        "allow_query_builder": 1,
+        "allow_child_tables": 1
+      }
+    },
+    "plan": {
+      "plan_version": "phase4c_foundation_v1",
+      "analysis_type": "co_occurrence",
+      "source_doctype": "Sales Invoice",
+      "relationships": ["sales_invoice_items"],
+      "dimensions": ["Sales Invoice Item.item_code"],
+      "filters": [
+        {"field": "docstatus", "operator": "=", "value": 1},
+        {"field": "posting_date", "operator": "between", "value": ["2000-01-01", "2099-12-31"]}
+      ],
+      "limit": 10,
+      "final_answer_shape": "ranking"
+    },
+    "expected": {
+      "status": "success",
+      "analysis_type": "co_occurrence",
+      "columns_contains": ["item_a", "item_b", "pair_count", "total_qty_a", "total_qty_b"],
+      "min_row_count": 1
+    }
+  },
+  {
+    "case_id": "A11_most_sold_item_pairs_2026",
+    "category": "success",
+    "policy_overrides": {
+      "Sales Invoice": {
+        "allow_query_builder": 1,
+        "allow_child_tables": 1
+      }
+    },
+    "plan": {
+      "plan_version": "phase4c_foundation_v1",
+      "analysis_type": "co_occurrence",
+      "source_doctype": "Sales Invoice",
+      "relationships": ["sales_invoice_items"],
+      "dimensions": ["Sales Invoice Item.item_code"],
+      "filters": [
+        {"field": "docstatus", "operator": "=", "value": 1},
+        {"field": "posting_date", "operator": "between", "value": ["2026-01-01", "2026-12-31"]}
+      ],
+      "limit": 10,
+      "final_answer_shape": "ranking"
+    },
+    "expected": {
+      "status": "success",
+      "analysis_type": "co_occurrence",
+      "columns_contains": ["item_a", "item_b", "pair_count"],
+      "min_row_count": 1
+    }
+  },
+  {
+    "case_id": "A12_co_occurrence_rejected_by_policy",
+    "category": "rejected",
+    "policy_overrides": {
+      "Sales Invoice": {
+        "allow_query_builder": 0,
+        "allow_child_tables": 0
+      }
+    },
+    "plan": {
+      "plan_version": "phase4c_foundation_v1",
+      "analysis_type": "co_occurrence",
+      "source_doctype": "Sales Invoice",
+      "relationships": ["sales_invoice_items"],
+      "dimensions": ["Sales Invoice Item.item_code"],
+      "filters": [
+        {"field": "docstatus", "operator": "=", "value": 1}
+      ],
+      "limit": 10,
+      "final_answer_shape": "ranking"
+    },
+    "expected": {
+      "status": "rejected",
+      "analysis_type": "co_occurrence",
+      "error_contains": "does not allow relationship analytics"
+    }
+  },
+  {
+    "case_id": "A13_co_occurrence_missing_date_filter",
+    "category": "rejected",
+    "policy_overrides": {
+      "Sales Invoice": {
+        "allow_query_builder": 1,
+        "allow_child_tables": 1,
+        "large_table_requires_date_filter": 1
+      }
+    },
+    "plan": {
+      "plan_version": "phase4c_foundation_v1",
+      "analysis_type": "co_occurrence",
+      "source_doctype": "Sales Invoice",
+      "relationships": ["sales_invoice_items"],
+      "dimensions": ["Sales Invoice Item.item_code"],
+      "filters": [
+        {"field": "docstatus", "operator": "=", "value": 1}
+      ],
+      "limit": 10,
+      "final_answer_shape": "ranking"
+    },
+    "expected": {
+      "status": "rejected",
+      "analysis_type": "co_occurrence",
+      "error_contains": "requires a filter on 'posting_date'"
+    }
+  }
+]

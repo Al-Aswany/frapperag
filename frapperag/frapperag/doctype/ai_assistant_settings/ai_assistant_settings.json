@@ -110,29 +110,29 @@
   {
    "fieldname": "section_reports",
    "fieldtype": "Section Break",
-   "label": "Allowed Reports"
+   "label": "Allowed AI Reports"
   },
   {
    "fieldname": "allowed_reports",
    "fieldtype": "Table",
-   "label": "Allowed Reports",
+   "label": "Allowed AI Reports",
    "options": "RAG Allowed Report"
   },
   {
    "fieldname": "section_aggregate",
    "fieldtype": "Section Break",
-   "label": "Aggregate Query Fields"
+   "label": "Queryable Fields / Aggregate Policy"
   },
   {
    "fieldname": "aggregate_fields",
    "fieldtype": "Table",
-   "label": "Aggregate Fields",
+   "label": "Queryable Fields / Aggregate Policy",
    "options": "RAG Aggregate Field"
   },
   {
    "fieldname": "section_sidecar",
    "fieldtype": "Section Break",
-   "label": "RAG Sidecar"
+   "label": "AI Assistant Sidecar"
   },
   {
    "default": "8100",
@@ -239,7 +239,7 @@
  "index_web_pages_for_search": 0,
  "issingle": 1,
  "links": [],
- "modified": "2026-04-26 00:00:00.000000",
+ "modified": "2026-05-11 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "FrappeRAG",
  "name": "AI Assistant Settings",

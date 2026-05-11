@@ -502,3 +502,34 @@ Implemented:
 
 Phase 6:
 Clean old files and sidecar endpoints.
+
+Phase 7B:
+RC rebrand and release polish for FrappeAI Assistant.
+
+- Public product name: `FrappeAI Assistant`
+- Public GitHub repo: `https://github.com/Al-Aswany/FrappeAI-Assistant`
+- Internal RC compatibility names remain unchanged:
+- `frapperag` app/package/import root
+- `RAG Admin` / `RAG User` role names
+- `/rag-chat`, `/rag-admin`, `/rag-health` Desk routes
+- `RAG System Health`, `RAG Allowed DocType`, `RAG Allowed Report`, and `RAG Aggregate Field` DocType names
+- `FrappeRAG` module metadata
+- Phase 7B rebrands visible copy only: docs, page titles, settings labels, app title, and sidecar title.
+- Phase 7B does not rename dotted Python paths, whitelisted methods, patch paths, fixtures, logger channels, or process-manager labels.
+
+Phase 7C:
+Fresh minimal install verification remains deferred until after the Phase 7B rebrand lands.
+
+Planned checklist:
+
+1. Create a new bench for validation.
+2. Install only core/default dependencies from `requirements.txt`.
+3. Confirm `lancedb`, `pyarrow`, `sentence-transformers`, and `torch` are absent.
+4. Install the app from `https://github.com/Al-Aswany/FrappeAI-Assistant`.
+5. Run `bench --site <site> install-app frapperag` and `migrate`.
+6. Start the sidecar and verify `/health`.
+7. Verify hybrid `get_list` execution.
+8. Verify hybrid analytics execution.
+9. Verify `assistant_mode = v1` degrades gracefully when vectors are unavailable.
+10. Verify manual legacy indexing shows an unavailable message when optional vector dependencies are missing.
+11. Install `requirements-legacy-vector.txt` and verify vector capability returns without changing the base install path.

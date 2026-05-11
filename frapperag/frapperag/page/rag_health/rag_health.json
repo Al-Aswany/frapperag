@@ -2,7 +2,7 @@
  "creation": "2026-04-10 00:00:00.000000",
  "doctype": "Page",
  "module": "FrappeRAG",
- "modified": "2026-04-10 00:00:00.000000",
+ "modified": "2026-05-11 00:00:00.000000",
  "modified_by": "Administrator",
  "name": "rag-health",
  "owner": "Administrator",
@@ -13,5 +13,5 @@
   }
  ],
  "standard": "Yes",
- "title": "RAG Health"
+ "title": "AI Assistant Health"
 }

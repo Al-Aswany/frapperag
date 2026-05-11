@@ -1,7 +1,7 @@
 frappe.pages["rag-health"].on_page_load = function (wrapper) {
 	var page = frappe.ui.make_app_page({
 		parent: wrapper,
-		title: "RAG Health",
+		title: "AI Assistant Health",
 		single_column: true,
 	});
 
@@ -22,7 +22,7 @@ frappe.pages["rag-health"].on_page_load = function (wrapper) {
 			</div>
 
 			<div class="section-card">
-				<h5>Indexing Failures &mdash; Last 24 h</h5>
+				<h5>Legacy Vector Indexing Failures &mdash; Last 24 h</h5>
 				<table id="index-stats">
 					<thead><tr><th>DocType</th><th>Failed Jobs</th></tr></thead>
 					<tbody id="index-stats-body">
@@ -32,7 +32,7 @@ frappe.pages["rag-health"].on_page_load = function (wrapper) {
 			</div>
 
 			<div class="section-card">
-				<h5>Recent Failed Indexing Jobs</h5>
+				<h5>Recent Failed Legacy Vector Jobs</h5>
 				<table id="failed-jobs">
 					<thead>
 						<tr>
