@@ -5,6 +5,27 @@ from frapperag.rag.legacy_vector_policy import get_manual_indexing_targets, get_
 from frapperag.rag.indexer import DocIndexerTool
 
 
+def _require_vector_backend_available() -> dict:
+    from frapperag.rag.sidecar_client import health_check
+
+    status = health_check()
+    if not status.get("ok"):
+        frappe.throw(
+            f"Legacy vector backend is unavailable: {status.get('detail') or 'sidecar not reachable'}.",
+            frappe.ValidationError,
+        )
+
+    data = status.get("data") or {}
+    if not data.get("vector_available"):
+        reason = data.get("vector_reason") or "optional legacy vector dependencies are not installed."
+        frappe.throw(
+            f"Legacy vector backend is unavailable: {reason}",
+            frappe.ValidationError,
+        )
+
+    return status
+
+
 @frappe.whitelist()
 def trigger_indexing(doctype: str) -> dict:
     """Enqueue a background indexing job. Returns job_id immediately.
@@ -12,6 +33,7 @@ def trigger_indexing(doctype: str) -> dict:
     All embedding, LanceDB writes, and document reads happen inside the
     background worker — zero blocking I/O in this HTTP handler (Principle V).
     """
+    _require_vector_backend_available()
     tool = DocIndexerTool()
     return tool.safe_execute(
         args={"doctype": doctype, "user": frappe.session.user},
@@ -109,6 +131,7 @@ def trigger_full_index() -> dict:
     DocTypes that already have a Queued or Running job are skipped (not an error).
     Returns a summary of queued and skipped DocTypes.
     """
+    _require_vector_backend_available()
     tool = DocIndexerTool()
     tool.check_permission(frappe.session.user)
 

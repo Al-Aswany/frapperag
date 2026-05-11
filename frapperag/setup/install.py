@@ -1,4 +1,5 @@
 import os
+import importlib
 from typing import Any
 
 import frappe
@@ -13,7 +14,8 @@ _DEFAULT_CHAT_MODEL = "gemini-2.5-flash"
 def after_install():
     rag_path = os.path.join(frappe.utils.get_bench_path(), "rag")
     os.makedirs(rag_path, exist_ok=True)
-    _ensure_existing_lancedb_indices(rag_path)
+    if _legacy_vector_dependencies_available():
+        _ensure_existing_lancedb_indices(rag_path)
     _ensure_sidecar_procfile_entry()
     _ensure_sidecar_supervisor_entry()
     seed_all_settings()
@@ -160,6 +162,16 @@ def _ensure_existing_lancedb_indices(rag_path: str) -> None:
                 pass  # best-effort per table
     except Exception:
         pass  # if LanceDB isn't installed yet, skip gracefully
+
+
+def _legacy_vector_dependencies_available() -> bool:
+    try:
+        return (
+            importlib.util.find_spec("lancedb") is not None
+            and importlib.util.find_spec("pyarrow") is not None
+        )
+    except Exception:
+        return False
 
 
 def _ensure_sidecar_procfile_entry() -> None:

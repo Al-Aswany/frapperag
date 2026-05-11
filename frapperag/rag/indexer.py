@@ -142,7 +142,11 @@ def run_indexing_job(indexing_job_id: str, doctype: str, user: str, **kwargs):
     job_id = indexing_job_id
     from frapperag.rag.text_converter import to_text
     from frapperag.rag.sidecar_client import (
-        upsert_batch, SidecarError, SidecarUnavailableError, SidecarPermanentError
+        upsert_batch,
+        SidecarError,
+        SidecarUnavailableError,
+        SidecarPermanentError,
+        SidecarFeatureUnavailableError,
     )
 
     _log().info(f"[JOB_START] job_id={job_id} doctype={doctype} user={user}")
@@ -228,6 +232,19 @@ def run_indexing_job(indexing_job_id: str, doctype: str, user: str, **kwargs):
                     frappe.db.commit()
                     _publish(job, user, error=str(exc))
                     _log().warning(f"[JOB_FAIL] job_id={job_id} failure_reason=Sidecar unavailable")
+                    return
+
+                except SidecarFeatureUnavailableError as exc:
+                    job.status         = "Failed"
+                    job.error_detail   = str(exc)
+                    job.failure_reason = "Legacy vector backend unavailable"
+                    job.end_time       = now_datetime()
+                    job.save(ignore_permissions=True)
+                    frappe.db.commit()
+                    _publish(job, user, error=str(exc))
+                    _log().warning(
+                        f"[JOB_FAIL] job_id={job_id} failure_reason=Legacy vector backend unavailable"
+                    )
                     return
 
                 except SidecarPermanentError as exc:

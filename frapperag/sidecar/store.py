@@ -4,12 +4,10 @@ This module is imported ONLY inside the sidecar process (FastAPI/uvicorn).
 It MUST NOT be imported from Frappe worker processes — doing so would violate
 Constitution Principle IV (workers must talk to LanceDB via HTTP, not directly).
 
-The LanceDB connection is initialised once during the FastAPI lifespan startup
-event (not at Python module import time) to prevent accidental connection
-attempts before the bench path is configured.
+PyArrow and LanceDB are optional Phase 7A dependencies. Import them lazily so
+the sidecar can still start in chat-only mode when the vector backend is not
+installed.
 """
-
-import pyarrow as pa
 
 # Provider-specific schema state — set by configure_provider() during startup.
 _DIM: int | None = None
@@ -26,6 +24,8 @@ def configure_provider(dim: int, prefix: str) -> None:
     Called once from sync_startup() after build_provider().
     """
     global _DIM, _PREFIX, _SCHEMA
+    import pyarrow as pa
+
     _DIM = dim
     _PREFIX = prefix
     _SCHEMA = pa.schema([

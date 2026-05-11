@@ -35,11 +35,23 @@ def run_sync_job(
 
     try:
         if trigger_type == "Delete":
-            from frapperag.rag.sidecar_client import delete_record, SidecarError
+            from frapperag.rag.sidecar_client import (
+                delete_record,
+                SidecarError,
+                SidecarFeatureUnavailableError,
+            )
             try:
                 delete_record(doctype, name)
                 frappe.db.set_value("Sync Event Log", sync_log_id, "outcome", "Success")
                 _log().info(f"[SYNC_SUCCESS] sync_log_id={sync_log_id} trigger_type=Delete")
+            except SidecarFeatureUnavailableError as exc:
+                frappe.db.set_value("Sync Event Log", sync_log_id, {
+                    "outcome": "Skipped",
+                    "error_message": str(exc),
+                })
+                _log().warning(
+                    f"[SYNC_SKIP] sync_log_id={sync_log_id} trigger_type=Delete reason=Legacy vector backend unavailable"
+                )
             except SidecarError as exc:
                 frappe.db.set_value("Sync Event Log", sync_log_id, {
                     "outcome": "Failed",
@@ -66,7 +78,12 @@ def run_sync_job(
             except Exception:
                 _api_key = None
 
-            from frapperag.rag.sidecar_client import delete_record, upsert_record, SidecarError
+            from frapperag.rag.sidecar_client import (
+                delete_record,
+                upsert_record,
+                SidecarError,
+                SidecarFeatureUnavailableError,
+            )
             try:
                 if old_name:
                     delete_record(doctype, old_name)
@@ -74,6 +91,14 @@ def run_sync_job(
                     upsert_record(doctype, name, text, api_key=_api_key)
                 frappe.db.set_value("Sync Event Log", sync_log_id, "outcome", "Success")
                 _log().info(f"[SYNC_SUCCESS] sync_log_id={sync_log_id} trigger_type=Rename")
+            except SidecarFeatureUnavailableError as exc:
+                frappe.db.set_value("Sync Event Log", sync_log_id, {
+                    "outcome": "Skipped",
+                    "error_message": str(exc),
+                })
+                _log().warning(
+                    f"[SYNC_SKIP] sync_log_id={sync_log_id} trigger_type=Rename reason=Legacy vector backend unavailable"
+                )
             except SidecarError as exc:
                 frappe.db.set_value("Sync Event Log", sync_log_id, {
                     "outcome": "Failed",
@@ -103,11 +128,23 @@ def run_sync_job(
         except Exception:
             _api_key = None
 
-        from frapperag.rag.sidecar_client import upsert_record, SidecarError
+        from frapperag.rag.sidecar_client import (
+            upsert_record,
+            SidecarError,
+            SidecarFeatureUnavailableError,
+        )
         try:
             upsert_record(doctype, name, text, api_key=_api_key)
             frappe.db.set_value("Sync Event Log", sync_log_id, "outcome", "Success")
             _log().info(f"[SYNC_SUCCESS] sync_log_id={sync_log_id} trigger_type={trigger_type}")
+        except SidecarFeatureUnavailableError as exc:
+            frappe.db.set_value("Sync Event Log", sync_log_id, {
+                "outcome": "Skipped",
+                "error_message": str(exc),
+            })
+            _log().warning(
+                f"[SYNC_SKIP] sync_log_id={sync_log_id} trigger_type={trigger_type} reason=Legacy vector backend unavailable"
+            )
         except SidecarError as exc:
             frappe.db.set_value("Sync Event Log", sync_log_id, {
                 "outcome": "Failed",
@@ -138,10 +175,15 @@ def run_purge_job(sync_log_id: str, doctype: str, user: str, **kwargs) -> None:
     frappe.db.commit()
 
     try:
-        from frapperag.rag.sidecar_client import drop_table, SidecarError
+        from frapperag.rag.sidecar_client import drop_table, SidecarError, SidecarFeatureUnavailableError
         try:
             drop_table(doctype)
             frappe.db.set_value("Sync Event Log", sync_log_id, "outcome", "Success")
+        except SidecarFeatureUnavailableError as exc:
+            frappe.db.set_value("Sync Event Log", sync_log_id, {
+                "outcome": "Skipped",
+                "error_message": str(exc),
+            })
         except SidecarError as exc:
             frappe.db.set_value("Sync Event Log", sync_log_id, {
                 "outcome": "Failed",

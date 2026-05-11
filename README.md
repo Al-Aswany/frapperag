@@ -102,35 +102,53 @@ apps/frapperag/frapperag/
 | Python | 3.11+ |
 | Frappe | v15+ |
 | ERPNext | v15+ |
-| lancedb | >= 0.8.0 |
-| pyarrow | >= 14.0.0 |
-| sentence-transformers | >= 2.7.0 |
 | fastapi | >= 0.110.0 |
 | uvicorn | >= 0.29.0 |
 | httpx | >= 0.27.0 |
 | google-genai | >= 1.0.0 |
+
+### Optional dependency groups
+
+- `legacy-vector` — `lancedb`, `pyarrow`
+- `local-embeddings` — `sentence-transformers`, `huggingface-hub`
+- `documents` — reserved for future file/document parsers
 
 ## Installation
 
 ```bash
 cd $PATH_TO_YOUR_BENCH
 bench get-app https://github.com/your-org/frapperag
+./env/bin/pip install -r apps/frapperag/frapperag/requirements.txt
 bench --site <site> install-app frapperag
 bench --site <site> migrate
 ```
 
-> **PyTorch (CPU-only)** — `requirements.txt` cannot force pip to use the CPU wheel index, so install torch separately before the rest of the dependencies:
+Legacy vector compatibility is optional:
+
+```bash
+./env/bin/pip install -r apps/frapperag/frapperag/requirements-legacy-vector.txt
+```
+
+Local embeddings (`e5-small`) are also optional and require CPU-only PyTorch plus the local embedding requirements:
 >
 > ```bash
 > # Run these from your bench's Python environment
 > ./env/bin/pip install torch --index-url https://download.pytorch.org/whl/cpu
-> ./env/bin/pip install -r apps/frapperag/frapperag/requirements.txt
+> ./env/bin/pip install -r apps/frapperag/frapperag/requirements-local-embeddings.txt
 > ```
 >
 > Omitting the first step causes pip to pull the default (CUDA) wheel, which is ~2 GB and unnecessary on CPU-only servers.
 
+Editable installs with extras are also supported:
+
+```bash
+./env/bin/pip install -e apps/frapperag
+./env/bin/pip install -e 'apps/frapperag[legacy-vector]'
+./env/bin/pip install -e 'apps/frapperag[legacy-vector,local-embeddings]'
+```
+
 `after_install` automatically:
-1. Creates the bench-level `rag/` directory for LanceDB data.
+1. Creates the bench-level `rag/` directory for optional LanceDB data.
 2. Appends a `rag_sidecar:` entry to the bench `Procfile`.
 
 `after_migrate` idempotently seeds the default 11 allowed ERP DocTypes into AI Assistant Settings and backfills `Enable Legacy Transactional Vector Sync = 0` unless it has already been set.

@@ -1,0 +1,5 @@
+# Optional local embedding runtime
+# Install CPU-only PyTorch separately first:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+sentence-transformers>=2.7.0
+huggingface-hub>=0.23.0

@@ -3,12 +3,11 @@
 Started by `bench start` via the Procfile entry added by after_install().
 Binds to localhost only (Constitution Principle IV).
 
-Heavy work (LanceDB + embedding model) runs in `sync_startup()`, invoked
-from `__main__` *before* `uvicorn.run`. Uvicorn runs ASGI lifespan startup
-*before* it binds the listening socket; doing model load only in lifespan
-meant a ~minute-long load followed by bind failure if the port was already
-taken (e.g. a stale sidecar). Pre-startup init plus an early port check avoids
-that and fails fast with a clear error.
+Phase 7A keeps chat startup lightweight by initialising only the Gemini chat
+runtime during `sync_startup()`. Optional vector dependencies (LanceDB,
+PyArrow, sentence-transformers, local model warmup) are loaded lazily only
+when vector endpoints are used. The early port check still runs before
+`uvicorn.run` so stale sidecars fail fast.
 
 Usage:
     python main.py --port 8100
@@ -16,6 +15,7 @@ Usage:
 """
 
 import errno
+import importlib
 import logging
 import os
 import socket
@@ -39,10 +39,14 @@ logging.basicConfig(
 log = logging.getLogger("rag_sidecar")
 
 # ---------------------------------------------------------------------------
-# Module-level state — set during lifespan startup, NOT at import time
+# Module-level state — set lazily at runtime, NOT at import time
 # ---------------------------------------------------------------------------
 
 _provider = None  # EmbeddingProvider instance (GeminiProvider or E5SmallProvider)
+_startup_ready = False
+_store_ready = False
+_provider_warmed = False
+_vector_init_lock = threading.Lock()
 
 # Gemini SDK state — configured lazily on first /chat request, reused thereafter
 _genai_api_key: str | None = None
@@ -52,6 +56,7 @@ _genai_client = None
 _install_state: dict[str, dict] = {}
 
 _DEFAULT_CHAT_MODEL = "gemini-2.5-flash"
+_FEATURE_UNAVAILABLE_ERROR_CODE = "feature_unavailable"
 _GOOGLE_SEARCH_ALLOWED_INTENTS = frozenset({
     "erpnext_help",
     "out_of_scope",
@@ -170,29 +175,137 @@ def assert_port_free(host: str, port: int) -> None:
 
 
 def sync_startup() -> None:
-    """Initialise LanceDB and the embedding provider once (not at import time)."""
-    global _provider
-    if _provider is not None:
+    """Prepare chat/runtime imports only.
+
+    Phase 7A keeps vector dependencies optional, so startup must not require
+    LanceDB, PyArrow, sentence-transformers, or a local model. Those are
+    initialised lazily when vector endpoints are used.
+    """
+    global _startup_ready
+    if _startup_ready:
         return
-
-    rag_dir = _resolve_rag_dir()
-    log.info("Startup: initialising LanceDB at %s", rag_dir)
-    from frapperag.sidecar.store import init_store
-    init_store(rag_dir)
-    log.info("Startup: LanceDB connection ready")
-
-    provider_name = os.environ.get("EMBEDDING_PROVIDER", "gemini")
-    from frapperag.sidecar.providers import build_provider
-    _provider = build_provider(provider_name)
-    _provider.warmup()
-
-    from frapperag.sidecar.store import configure_provider
-    configure_provider(_provider.dim, _provider.table_prefix)
-    log.info("Startup: provider=%s dim=%d prefix=%s", _provider.name, _provider.dim, _provider.table_prefix)
 
     log.info("Startup: pre-importing google.genai (warms module cache)")
     import google.genai  # noqa: F401
     log.info("Startup: google.genai imported")
+    _startup_ready = True
+
+
+def _provider_name() -> str:
+    return (os.environ.get("EMBEDDING_PROVIDER", "gemini") or "gemini").strip() or "gemini"
+
+
+def _provider_prefix(provider_name: str) -> str:
+    return "v6_e5small_" if provider_name == "e5-small" else "v5_gemini_"
+
+
+def _provider_dim(provider_name: str) -> int:
+    return 384 if provider_name == "e5-small" else 768
+
+
+def _check_optional_import(module_name: str) -> tuple[bool, str | None]:
+    try:
+        if importlib.util.find_spec(module_name) is None:
+            return False, f"{module_name} unavailable: module not installed"
+        return True, None
+    except Exception as exc:
+        return False, f"{module_name} unavailable: {exc}"
+
+
+def _vector_capability_snapshot() -> dict:
+    provider_name = _provider_name()
+    prefix = _provider_prefix(provider_name)
+    dim = _provider_dim(provider_name)
+
+    has_lancedb, lancedb_reason = _check_optional_import("lancedb")
+    has_pyarrow, pyarrow_reason = _check_optional_import("pyarrow")
+    has_sentence_transformers, st_reason = _check_optional_import("sentence_transformers")
+    has_huggingface_hub, hf_reason = _check_optional_import("huggingface_hub")
+
+    local_embeddings_available = has_sentence_transformers and has_huggingface_hub
+    vector_available = has_lancedb and has_pyarrow
+    vector_reason_parts: list[str] = []
+
+    if not has_lancedb:
+        vector_reason_parts.append(lancedb_reason or "lancedb unavailable")
+    if not has_pyarrow:
+        vector_reason_parts.append(pyarrow_reason or "pyarrow unavailable")
+
+    if provider_name == "e5-small" and not local_embeddings_available:
+        vector_available = False
+        if not has_sentence_transformers:
+            vector_reason_parts.append(st_reason or "sentence_transformers unavailable")
+        if not has_huggingface_hub:
+            vector_reason_parts.append(hf_reason or "huggingface_hub unavailable")
+
+    return {
+        "provider": provider_name,
+        "dim": dim,
+        "table_prefix": prefix,
+        "chat_available": True,
+        "vector_available": bool(vector_available),
+        "vector_reason": "; ".join(vector_reason_parts),
+        "local_embeddings_available": bool(local_embeddings_available),
+        "can_install_local_model": bool(local_embeddings_available),
+    }
+
+
+def _feature_unavailable_response(reason: str, **payload) -> JSONResponse:
+    body = {
+        "detail": reason,
+        "error_code": _FEATURE_UNAVAILABLE_ERROR_CODE,
+    }
+    body.update(payload)
+    return JSONResponse(status_code=409, content=body)
+
+
+def _health_payload() -> dict:
+    payload = _vector_capability_snapshot()
+    payload.update({
+        "status": "ok" if _startup_ready else "starting",
+        "startup_ready": _startup_ready,
+        "vector_initialized": _store_ready,
+        "model_loaded": _provider_warmed,
+    })
+    return payload
+
+
+def _ensure_vector_backend(*, need_embeddings: bool) -> tuple[object | None, dict]:
+    global _provider, _store_ready, _provider_warmed
+
+    capability = _vector_capability_snapshot()
+    if not capability["vector_available"]:
+        return None, capability
+
+    with _vector_init_lock:
+        capability = _vector_capability_snapshot()
+        if not capability["vector_available"]:
+            return None, capability
+
+        if _provider is None:
+            from frapperag.sidecar.providers import build_provider
+
+            _provider = build_provider(capability["provider"])
+
+        if not _store_ready:
+            rag_dir = _resolve_rag_dir()
+            from frapperag.sidecar.store import configure_provider, init_store
+
+            configure_provider(_provider.dim, _provider.table_prefix)
+            init_store(rag_dir)
+            _store_ready = True
+            log.info(
+                "Startup: vector store ready provider=%s dim=%d prefix=%s",
+                _provider.name,
+                _provider.dim,
+                _provider.table_prefix,
+            )
+
+        if need_embeddings and not _provider_warmed:
+            _provider.warmup()
+            _provider_warmed = True
+
+    return _provider, capability
 
 
 # ---------------------------------------------------------------------------
@@ -203,8 +316,9 @@ def sync_startup() -> None:
 async def lifespan(app: FastAPI):
     """FastAPI lifespan — full init if `sync_startup` was not run earlier."""
     global _genai_api_key, _genai_client, _provider
+    global _provider_warmed, _startup_ready, _store_ready
 
-    if _provider is None:
+    if not _startup_ready:
         sync_startup()
 
     yield
@@ -215,6 +329,9 @@ async def lifespan(app: FastAPI):
     _genai_api_key = None
     _genai_client = None
     _provider = None
+    _store_ready = False
+    _provider_warmed = False
+    _startup_ready = False
 
 
 # ---------------------------------------------------------------------------
@@ -481,14 +598,7 @@ def _validate_google_search_request(req: ChatRequest) -> None:
 @app.get("/health")
 def health():
     """Liveness check. Returns 200 when the sidecar is ready."""
-    if _provider is None:
-        return {"status": "starting"}
-    return {
-        "status": "ok",
-        "provider": _provider.name,
-        "dim": _provider.dim,
-        "table_prefix": _provider.table_prefix,
-    }
+    return _health_payload()
 
 
 @app.post("/embed")
@@ -496,11 +606,16 @@ def embed(req: EmbedRequest):
     """Embed a list of texts using the active embedding provider."""
     if not req.texts:
         raise HTTPException(status_code=422, detail="texts must be a non-empty list")
-    if _provider is None:
-        raise HTTPException(status_code=503, detail="Provider not initialised yet")
+
+    provider, capability = _ensure_vector_backend(need_embeddings=True)
+    if provider is None:
+        return _feature_unavailable_response(
+            capability["vector_reason"] or "Vector backend is unavailable.",
+            **capability,
+        )
 
     try:
-        vectors = _provider.embed(req.texts, req.mode, req.api_key)
+        vectors = provider.embed(req.texts, req.mode, req.api_key)
         return {"vectors": vectors}
     except HTTPException:
         raise
@@ -517,15 +632,20 @@ def search(req: SearchRequest):
     """
     if not req.text:
         raise HTTPException(status_code=422, detail="text must be non-empty")
-    if _provider is None:
-        raise HTTPException(status_code=503, detail="Provider not initialised yet")
+
+    provider, capability = _ensure_vector_backend(need_embeddings=True)
+    if provider is None:
+        return _feature_unavailable_response(
+            capability["vector_reason"] or "Vector backend is unavailable.",
+            **capability,
+        )
 
     from frapperag.sidecar.store import search_all_active_tables
     import time as _time
 
     try:
         t0 = _time.monotonic()
-        vector = _provider.embed([req.text], "query", req.api_key)[0]
+        vector = provider.embed([req.text], "query", req.api_key)[0]
         log.info("[TIMING][/search] embed %.3fs", _time.monotonic() - t0)
 
         t0 = _time.monotonic()
@@ -548,13 +668,18 @@ def upsert(req: UpsertRequest):
     """
     if not req.doctype or not req.name or not req.text:
         raise HTTPException(status_code=422, detail="doctype, name, and text are required")
-    if _provider is None:
-        raise HTTPException(status_code=503, detail="Provider not initialised yet")
+
+    provider, capability = _ensure_vector_backend(need_embeddings=True)
+    if provider is None:
+        return _feature_unavailable_response(
+            capability["vector_reason"] or "Vector backend is unavailable.",
+            **capability,
+        )
 
     from frapperag.sidecar.store import table_name_for, record_id_for, upsert_rows
 
     try:
-        vector = _provider.embed([req.text], "passage", req.api_key)[0]
+        vector = provider.embed([req.text], "passage", req.api_key)[0]
 
         table_name = table_name_for(req.doctype)
         row = {
@@ -583,8 +708,13 @@ def upsert_batch(req: UpsertBatchRequest):
     """
     if not req.records:
         raise HTTPException(status_code=422, detail="records must be non-empty")
-    if _provider is None:
-        raise HTTPException(status_code=503, detail="Provider not initialised yet")
+
+    provider, capability = _ensure_vector_backend(need_embeddings=True)
+    if provider is None:
+        return _feature_unavailable_response(
+            capability["vector_reason"] or "Vector backend is unavailable.",
+            **capability,
+        )
 
     from frapperag.sidecar.store import table_name_for, record_id_for, upsert_rows
     import time as _time
@@ -592,7 +722,7 @@ def upsert_batch(req: UpsertBatchRequest):
     try:
         t0 = _time.monotonic()
         texts = [r.text for r in req.records]
-        vectors = _provider.embed(texts, "passage", req.api_key)
+        vectors = provider.embed(texts, "passage", req.api_key)
         log.info("[TIMING][/upsert_batch] embed %d texts %.3fs", len(texts), _time.monotonic() - t0)
     except HTTPException:
         raise
@@ -714,6 +844,13 @@ def delete_record(table: str, record_id: str):
 
     Idempotent — no error if the record does not exist.
     """
+    provider, capability = _ensure_vector_backend(need_embeddings=False)
+    if provider is None:
+        return _feature_unavailable_response(
+            capability["vector_reason"] or "Vector backend is unavailable.",
+            **capability,
+        )
+
     from frapperag.sidecar.store import delete_row
 
     try:
@@ -730,6 +867,13 @@ def delete_table(table: str):
 
     Idempotent — no error if the table does not exist.
     """
+    provider, capability = _ensure_vector_backend(need_embeddings=False)
+    if provider is None:
+        return _feature_unavailable_response(
+            capability["vector_reason"] or "Vector backend is unavailable.",
+            **capability,
+        )
+
     from frapperag.sidecar.store import drop_table
 
     try:
@@ -746,11 +890,32 @@ def tables_populated(prefix: str = ""):
 
     Used by worker-side helpers to check if the active prefix has data.
     """
+    provider, capability = _ensure_vector_backend(need_embeddings=False)
+    if provider is None:
+        active_prefix = prefix if prefix else capability["table_prefix"]
+        return {
+            "populated": False,
+            "tables": [],
+            "prefix": active_prefix,
+            "available": False,
+            "reason": capability["vector_reason"] or "Vector backend is unavailable.",
+            "provider": capability["provider"],
+            "local_embeddings_available": capability["local_embeddings_available"],
+        }
+
     from frapperag.sidecar.store import list_populated_tables
     try:
-        active_prefix = prefix if prefix else (_provider.table_prefix if _provider else "")
+        active_prefix = prefix if prefix else provider.table_prefix
         tables = list_populated_tables(active_prefix)
-        return {"populated": len(tables) > 0, "tables": tables, "prefix": active_prefix}
+        return {
+            "populated": len(tables) > 0,
+            "tables": tables,
+            "prefix": active_prefix,
+            "available": True,
+            "reason": "",
+            "provider": capability["provider"],
+            "local_embeddings_available": capability["local_embeddings_available"],
+        }
     except Exception as exc:
         log.exception("tables_populated failed: %s", exc)
         raise HTTPException(status_code=500, detail=f"tables_populated failed: {exc}")
@@ -764,6 +929,13 @@ def install_local_model(req: InstallReq):
     for progress. The endpoint never changes embedding_provider — that is the
     worker/admin's responsibility after install succeeds.
     """
+    capability = _vector_capability_snapshot()
+    if not capability["local_embeddings_available"]:
+        return _feature_unavailable_response(
+            "Local embedding dependencies are not installed.",
+            **capability,
+        )
+
     install_id = uuid.uuid4().hex
     _install_state[install_id] = {
         "phase": "queued", "percent": 0,

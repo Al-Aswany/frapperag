@@ -43,7 +43,33 @@ function _render_active_prefix_banner(frm) {
         method: "frapperag.api.local_model.get_active_prefix_status",
         callback(r) {
             if (r.exc || !r.message) return;
-            const { populated_tables, expected_doctypes } = r.message;
+            const {
+                populated_tables,
+                expected_doctypes,
+                vector_available,
+                vector_reason,
+                sidecar_ok,
+                sidecar_detail,
+                local_embeddings_available,
+            } = r.message;
+            if (!sidecar_ok) {
+                frm.dashboard.add_indicator(
+                    __("Sidecar is unreachable — {0}", [sidecar_detail || __("check rag_sidecar")]),
+                    "red"
+                );
+                return;
+            }
+            if (!vector_available) {
+                let message = __("Legacy vector backend unavailable");
+                if (vector_reason) {
+                    message += " — " + frappe.utils.escape_html(vector_reason);
+                }
+                if (frm.doc.embedding_provider === "e5-small" && !local_embeddings_available) {
+                    message += " " + __("Install the optional local embedding dependencies before using e5-small.");
+                }
+                frm.dashboard.add_indicator(message, "orange");
+                return;
+            }
             if (populated_tables.length === 0 && expected_doctypes.length > 0) {
                 frm.dashboard.add_indicator(
                     __("Active embedding prefix is empty — run Legacy Index All to populate legacy vector tables"),

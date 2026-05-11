@@ -1,0 +1,3 @@
+# Optional legacy vector backend
+lancedb>=0.8.0
+pyarrow>=14.0.0

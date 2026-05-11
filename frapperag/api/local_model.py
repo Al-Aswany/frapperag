@@ -46,6 +46,24 @@ def install_local_model(hf_token: str | None = None) -> dict:
             )
         )
 
+    from frapperag.rag.sidecar_client import health_check
+
+    health = health_check()
+    if not health.get("ok"):
+        frappe.throw(
+            _("Local model install requires the sidecar to be reachable: {0}").format(
+                health.get("detail") or _("sidecar unavailable")
+            )
+        )
+
+    data = health.get("data") or {}
+    if not data.get("can_install_local_model"):
+        frappe.throw(
+            _("Local embedding dependencies are not installed in this environment: {0}").format(
+                data.get("vector_reason") or _("sentence-transformers / huggingface-hub unavailable")
+            )
+        )
+
     from frappe.utils import now_datetime
     job_id = f"rag_local_install_{now_datetime():%Y%m%d_%H%M%S}"
     frappe.enqueue(
@@ -89,20 +107,53 @@ def get_active_prefix_status() -> dict:
 
     Used by the dashboard banner in AI Assistant Settings to detect an empty prefix.
     """
-    from frapperag.rag.sidecar_client import tables_populated, _active_table_prefix
+    from frapperag.rag.sidecar_client import health_check, tables_populated, _active_table_prefix
 
     try:
         settings = frappe.get_cached_doc("AI Assistant Settings")
         expected = [r.doctype_name for r in (settings.allowed_doctypes or [])]
         provider = settings.embedding_provider or "gemini"
         prefix = _active_table_prefix()
+        health = health_check()
+        health_data = health.get("data") or {}
+        if not health.get("ok"):
+            return {
+                "provider": provider,
+                "prefix": prefix,
+                "populated_tables": [],
+                "expected_doctypes": expected,
+                "vector_available": False,
+                "vector_reason": health.get("detail") or "",
+                "local_embeddings_available": bool(health_data.get("local_embeddings_available")),
+                "can_install_local_model": bool(health_data.get("can_install_local_model")),
+                "sidecar_ok": False,
+                "sidecar_detail": health.get("detail"),
+            }
+
         result = tables_populated(prefix)
         return {
             "provider": provider,
             "prefix": prefix,
             "populated_tables": result.get("tables", []),
             "expected_doctypes": expected,
+            "vector_available": bool(health_data.get("vector_available")),
+            "vector_reason": health_data.get("vector_reason") or result.get("reason") or "",
+            "local_embeddings_available": bool(health_data.get("local_embeddings_available")),
+            "can_install_local_model": bool(health_data.get("can_install_local_model")),
+            "sidecar_ok": bool(health.get("ok")),
+            "sidecar_detail": health.get("detail"),
         }
     except Exception as exc:
         frappe.log_error(title="get_active_prefix_status failed", message=str(exc))
-        return {"provider": "gemini", "prefix": "v5_gemini_", "populated_tables": [], "expected_doctypes": []}
+        return {
+            "provider": "gemini",
+            "prefix": "v5_gemini_",
+            "populated_tables": [],
+            "expected_doctypes": [],
+            "vector_available": False,
+            "vector_reason": str(exc),
+            "local_embeddings_available": False,
+            "can_install_local_model": False,
+            "sidecar_ok": False,
+            "sidecar_detail": str(exc),
+        }

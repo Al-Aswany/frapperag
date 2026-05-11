@@ -9,14 +9,23 @@ readme = "README.md"
 dynamic = ["version"]
 dependencies = [
     # "frappe~=15.0.0" # Installed and managed by bench.
-    "lancedb",
-    "pyarrow",
-    "sentence-transformers",
     "fastapi",
     "uvicorn",
     "httpx",
     "google-genai",
 ]
+
+[project.optional-dependencies]
+legacy-vector = [
+    "lancedb",
+    "pyarrow",
+]
+local-embeddings = [
+    "sentence-transformers",
+    "huggingface-hub",
+]
+documents = []
+dev = []
 
 [build-system]
 requires = ["flit_core >=3.4,<4"]

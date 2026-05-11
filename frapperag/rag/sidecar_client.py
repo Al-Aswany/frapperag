@@ -7,8 +7,8 @@ directly (Constitution Principle IV / Sidecar HTTP only Development Workflow rul
 All public functions use httpx via _retry_call, which retries up to 3 times with
 exponential back-off (1s → 2s) on transient errors before raising
 SidecarUnavailableError. Permanent 4xx errors raise SidecarPermanentError
-immediately without retrying. Both exception classes are defined here so callers
-(indexer.py, chat_runner.py) can import and handle them explicitly.
+immediately without retrying, and optional-feature misses raise
+SidecarFeatureUnavailableError so callers can fail gracefully.
 
 Implementation rule: httpx is imported INSIDE each function (not at module level)
 to preserve the per-function heavy-import isolation pattern used throughout the app.
@@ -36,6 +36,11 @@ class SidecarPermanentError(SidecarError):
     def __init__(self, message: str, status_code: int | None = None):
         super().__init__(message)
         self.status_code = status_code
+
+
+class SidecarFeatureUnavailableError(SidecarPermanentError):
+    """Raised when an optional sidecar feature is unavailable in this install."""
+    pass
 
 
 def _get_port() -> int:
@@ -95,6 +100,10 @@ def _retry_call(fn, *args, **kwargs):
         try:
             response = fn(*args, **kwargs)
             sc = response.status_code
+            try:
+                payload = response.json()
+            except Exception:
+                payload = {}
 
             if sc in {429, 502, 503}:
                 # Transient HTTP status — retry with back-off
@@ -114,10 +123,13 @@ def _retry_call(fn, *args, **kwargs):
                     )
             elif 400 <= sc < 500:
                 # Permanent client error — do not retry
-                raise SidecarPermanentError(
-                    f"Sidecar returned HTTP {sc}: {response.text[:200]}",
-                    status_code=sc,
-                )
+                detail = payload.get("detail") or response.text[:200]
+                if payload.get("error_code") == "feature_unavailable":
+                    raise SidecarFeatureUnavailableError(
+                        f"Sidecar feature unavailable: {detail}",
+                        status_code=sc,
+                    )
+                raise SidecarPermanentError(f"Sidecar returned HTTP {sc}: {detail}", status_code=sc)
             elif sc >= 300:
                 # Non-transient server error (5xx other than 502/503)
                 raise SidecarError(
@@ -139,7 +151,12 @@ def _retry_call(fn, *args, **kwargs):
                     f"Sidecar unavailable after {max_attempts} retries ({target})"
                     " — is rag_sidecar running? Check `bench start` logs."
                 ) from exc
-        except (SidecarUnavailableError, SidecarPermanentError, SidecarError):
+        except (
+            SidecarUnavailableError,
+            SidecarFeatureUnavailableError,
+            SidecarPermanentError,
+            SidecarError,
+        ):
             raise
 
 
@@ -155,7 +172,11 @@ def health_check(port: int | None = None) -> dict:
     try:
         r = httpx.get(url, timeout=5.0)
         if r.status_code == 200:
-            return {"ok": True, "url": url, "detail": None}
+            try:
+                data = r.json()
+            except Exception:
+                data = None
+            return {"ok": True, "url": url, "detail": None, "data": data}
         return {"ok": False, "url": url, "detail": f"HTTP {r.status_code}: {r.text[:200]}"}
     except (httpx.ConnectError, httpx.TimeoutException) as exc:
         return {"ok": False, "url": url, "detail": f"{type(exc).__name__} — is rag_sidecar running? Check `bench start` logs."}

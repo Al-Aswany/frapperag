@@ -137,5 +137,7 @@ class AIAssistantSettings(Document):
                 "1. Restart the sidecar (<code>bench restart</code> in production, or kill the "
                 "rag_sidecar process under <code>bench start</code>) for the new model to load.<br>"
                 "2. After restart, click <b>Legacy Index All</b> to populate <code>{1}*</code> "
-                "tables. Until then, chat will return responses without citations."
+                "tables. Until then, chat will return responses without citations.<br>"
+                "If the optional vector dependencies for this provider are not installed, "
+                "legacy vector search and indexing will remain unavailable until they are added."
             ).format(new_provider, target_prefix), indicator="orange")

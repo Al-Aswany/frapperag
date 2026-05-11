@@ -153,6 +153,8 @@ def run_chat_job(message_id: str, session_id: str, user: str, question: str = ""
             final_citations = hybrid_result.get("citations") or []
             tokens_used = hybrid_result.get("tokens_used", 0)
         else:
+            from frapperag.rag.sidecar_client import SidecarFeatureUnavailableError
+
             # Load whitelist + build per-report Gemini tool declarations (FR-004, FR-005)
             t0 = _time.monotonic()
             whitelist_names, whitelist_entries = _load_report_whitelist()
@@ -170,89 +172,99 @@ def run_chat_job(message_id: str, session_id: str, user: str, question: str = ""
 
             # 1+2. Embed query + search all v4_* tables via sidecar (single HTTP call)
             t0 = _time.monotonic()
-            candidates = search_candidates(question, api_key=api_key)
-            _log().info(
-                f"[TIMING][{message_id}] search_candidates {_time.monotonic() - t0:.3f}s"
-                f" → {len(candidates)} candidates"
-            )
+            try:
+                candidates = search_candidates(question, api_key=api_key)
+                _log().info(
+                    f"[TIMING][{message_id}] search_candidates {_time.monotonic() - t0:.3f}s"
+                    f" → {len(candidates)} candidates"
+                )
 
-            # 3. Filter by user permissions per-record (Principle III)
-            t0 = _time.monotonic()
-            filtered = filter_by_permission(candidates, user)
-            _log().info(
-                f"[TIMING][{message_id}] filter_by_permission {_time.monotonic() - t0:.3f}s"
-                f" ({len(candidates)} → {len(filtered)} records)"
-            )
+                # 3. Filter by user permissions per-record (Principle III)
+                t0 = _time.monotonic()
+                filtered = filter_by_permission(candidates, user)
+                _log().info(
+                    f"[TIMING][{message_id}] filter_by_permission {_time.monotonic() - t0:.3f}s"
+                    f" ({len(candidates)} → {len(filtered)} records)"
+                )
 
-            # 4. Load last 10 conversation turns (excluding the current Pending message)
-            t0 = _time.monotonic()
-            history_docs = frappe.db.get_all(
-                "Chat Message",
-                filters={"session": session_id, "name": ["!=", message_id]},
-                fields=["role", "content"],
-                order_by="creation desc",
-                limit=10,
-                ignore_permissions=False,
-            )
-            history = [{"role": d.role, "content": d.content} for d in reversed(history_docs)]
-            _log().info(
-                f"[TIMING][{message_id}] load_history {_time.monotonic() - t0:.3f}s"
-                f" → {len(history)} turns"
-            )
+                # 4. Load last 10 conversation turns (excluding the current Pending message)
+                t0 = _time.monotonic()
+                history_docs = frappe.db.get_all(
+                    "Chat Message",
+                    filters={"session": session_id, "name": ["!=", message_id]},
+                    fields=["role", "content"],
+                    order_by="creation desc",
+                    limit=10,
+                    ignore_permissions=False,
+                )
+                history = [{"role": d.role, "content": d.content} for d in reversed(history_docs)]
+                _log().info(
+                    f"[TIMING][{message_id}] load_history {_time.monotonic() - t0:.3f}s"
+                    f" → {len(history)} turns"
+                )
 
-            # 5. Build Gemini message list
-            t0 = _time.monotonic()
-            messages = build_messages(question, filtered, history)
-            prompt_chars = sum(len(p) for m in messages for p in m.get("parts", []))
-            _log().info(
-                f"[TIMING][{message_id}] build_messages {_time.monotonic() - t0:.3f}s"
-                f" → {len(messages)} turns, ~{prompt_chars} chars in prompt"
-            )
+                # 5. Build Gemini message list
+                t0 = _time.monotonic()
+                messages = build_messages(question, filtered, history)
+                prompt_chars = sum(len(p) for m in messages for p in m.get("parts", []))
+                _log().info(
+                    f"[TIMING][{message_id}] build_messages {_time.monotonic() - t0:.3f}s"
+                    f" → {len(messages)} turns, ~{prompt_chars} chars in prompt"
+                )
 
-            # 6. Generate response via the configured chat runtime — pass tools when whitelist non-empty
-            t0 = _time.monotonic()
-            result = generate_response(messages, filtered, api_key, tools=all_tools)
-            _log().info(
-                f"[TIMING][{message_id}] generate_response {_time.monotonic() - t0:.3f}s"
-                f" tokens_used={result['tokens_used']}"
-            )
+                # 6. Generate response via the configured chat runtime — pass tools when whitelist non-empty
+                t0 = _time.monotonic()
+                result = generate_response(messages, filtered, api_key, tools=all_tools)
+                _log().info(
+                    f"[TIMING][{message_id}] generate_response {_time.monotonic() - t0:.3f}s"
+                    f" tokens_used={result['tokens_used']}"
+                )
 
-            # Branch on response type (FR-007, FR-008)
-            if "tool_call" in result:
-                tool_name = result["tool_call"]["name"]
-                if tool_name in slug_to_name:
-                    # Report execution path (existing)
-                    t0 = _time.monotonic()
-                    report_result = execute_report(
-                        {"report_name": slug_to_name[tool_name], "filters": dict(result["tool_call"]["args"])},
-                        user,
-                        whitelist_names,
-                    )
-                    final_text = report_result["text"]
-                    final_citations = report_result["citations"]
-                    tokens_used = result["tokens_used"]
-                    _log().info(f"[TIMING][{message_id}] execute_report {_time.monotonic() - t0:.3f}s")
-                elif tool_name in slug_to_template:
-                    # Query execution path (new — ExecuteQuery tool)
-                    t0 = _time.monotonic()
-                    query_result = execute_query(
-                        {"template": slug_to_template[tool_name], "params": dict(result["tool_call"]["args"])},
-                        user,
-                    )
-                    final_text = query_result["text"]
-                    final_citations = query_result["citations"]
-                    tokens_used = result["tokens_used"]
-                    _log().info(f"[TIMING][{message_id}] execute_query {_time.monotonic() - t0:.3f}s")
+                # Branch on response type (FR-007, FR-008)
+                if "tool_call" in result:
+                    tool_name = result["tool_call"]["name"]
+                    if tool_name in slug_to_name:
+                        # Report execution path (existing)
+                        t0 = _time.monotonic()
+                        report_result = execute_report(
+                            {"report_name": slug_to_name[tool_name], "filters": dict(result["tool_call"]["args"])},
+                            user,
+                            whitelist_names,
+                        )
+                        final_text = report_result["text"]
+                        final_citations = report_result["citations"]
+                        tokens_used = result["tokens_used"]
+                        _log().info(f"[TIMING][{message_id}] execute_report {_time.monotonic() - t0:.3f}s")
+                    elif tool_name in slug_to_template:
+                        # Query execution path (new — ExecuteQuery tool)
+                        t0 = _time.monotonic()
+                        query_result = execute_query(
+                            {"template": slug_to_template[tool_name], "params": dict(result["tool_call"]["args"])},
+                            user,
+                        )
+                        final_text = query_result["text"]
+                        final_citations = query_result["citations"]
+                        tokens_used = result["tokens_used"]
+                        _log().info(f"[TIMING][{message_id}] execute_query {_time.monotonic() - t0:.3f}s")
+                    else:
+                        # Unknown slug (should not happen — hallucinated function name)
+                        final_text = result.get("text", "")
+                        final_citations = result.get("citations", [])
+                        tokens_used = result["tokens_used"]
                 else:
-                    # Unknown slug (should not happen — hallucinated function name)
-                    final_text = result.get("text", "")
-                    final_citations = result.get("citations", [])
+                    # Existing RAG path (unchanged)
+                    final_text = result["text"]
+                    final_citations = result["citations"]
                     tokens_used = result["tokens_used"]
-            else:
-                # Existing RAG path (unchanged)
-                final_text = result["text"]
-                final_citations = result["citations"]
-                tokens_used = result["tokens_used"]
+            except SidecarFeatureUnavailableError as exc:
+                _log().warning("[V1_VECTOR_UNAVAILABLE] message_id=%s detail=%s", message_id, exc)
+                final_text = (
+                    "Legacy vector retrieval is unavailable in this install. "
+                    "Install the optional legacy vector dependencies to use v1 retrieval, "
+                    "or switch to hybrid mode for live ERP queries."
+                )
+                final_citations = []
+                tokens_used = 0
 
         # Separate tool-call results from retriever candidates.
         # citations      → only items the AI actually used (report_result, query_result,
@@ -352,6 +364,7 @@ def run_chat_job(message_id: str, session_id: str, user: str, question: str = ""
     except Exception as exc:
         import traceback
         import httpx as _httpx
+        from frapperag.rag.sidecar_client import SidecarFeatureUnavailableError as _SidecarFeatureUnavailableError
         from frapperag.rag.sidecar_client import SidecarUnavailableError as _SidecarUnavailableError
         from frapperag.rag.sidecar_client import SidecarPermanentError as _SidecarPermanentError
         tb = traceback.format_exc()
@@ -365,6 +378,8 @@ def run_chat_job(message_id: str, session_id: str, user: str, question: str = ""
             exc_module = type(exc).__module__ or ""
             if isinstance(exc, _SidecarUnavailableError):
                 failure_reason = "Assistant is temporarily unavailable — please try again shortly"
+            elif isinstance(exc, _SidecarFeatureUnavailableError):
+                failure_reason = "Legacy vector backend unavailable"
             elif isinstance(exc, _SidecarPermanentError):
                 sc_suffix = f" (HTTP {exc.status_code})" if exc.status_code else ""
                 failure_reason = f"Sidecar error{sc_suffix}"
