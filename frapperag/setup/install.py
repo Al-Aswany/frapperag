@@ -3,6 +3,8 @@ from typing import Any
 
 import frappe
 
+from frapperag.rag.legacy_vector_policy import LEGACY_VECTOR_DOCTYPES
+
 
 _SUPERVISOR_MARKER = "# --- frapperag rag_sidecar (managed by after_install/after_migrate) ---"
 _DEFAULT_CHAT_MODEL = "gemini-2.5-flash"
@@ -273,12 +275,7 @@ def _ensure_sidecar_supervisor_entry() -> None:
         )
 
 
-_DEFAULT_DOCTYPES = [
-    "Sales Invoice", "Customer", "Item",
-    "Purchase Invoice", "Purchase Order", "Sales Order",
-    "Delivery Note", "Purchase Receipt", "Supplier",
-    "Item Price", "Stock Entry",
-]
+_DEFAULT_DOCTYPES = list(LEGACY_VECTOR_DOCTYPES)
 
 _DEFAULT_ALLOWED_DOCTYPE_DATE_FIELDS = {
     "Purchase Invoice": "posting_date",
@@ -379,6 +376,10 @@ def seed_all_settings() -> None:
 
     if getattr(settings, "enable_chat_google_search", None) in (None, ""):
         settings.enable_chat_google_search = 0
+        changed = True
+
+    if getattr(settings, "enable_transactional_vector_sync", None) in (None, ""):
+        settings.enable_transactional_vector_sync = 0
         changed = True
 
     if not frappe.db.get_single_value("AI Assistant Settings", "assistant_mode"):

@@ -1,4 +1,4 @@
-"""Frappe doc_events handlers for incremental vector index sync.
+"""Frappe doc_events handlers for opt-in legacy vector index sync.
 
 These functions are called synchronously by Frappe inside the document
 lifecycle transaction.  They MUST be fast (whitelist check + DB insert only)
@@ -11,6 +11,8 @@ Event Log entry already persisted in the database.
 """
 
 import frappe
+
+from frapperag.rag.legacy_vector_policy import is_legacy_auto_sync_enabled, is_legacy_vector_doctype
 
 INTERNAL_DOCTYPES = {
     "Chat Session",
@@ -29,12 +31,10 @@ def _get_settings():
         return None
 
 
-def _is_whitelisted(settings, doctype: str) -> bool:
-    """Return True if the DocType is in the allowed_doctypes whitelist."""
-    if not settings or not settings.is_enabled:
+def _should_enqueue_sync(settings, doctype: str) -> bool:
+    if not is_legacy_vector_doctype(doctype):
         return False
-    allowed = {r.doctype_name for r in getattr(settings, "allowed_doctypes", [])}
-    return doctype in allowed
+    return is_legacy_auto_sync_enabled(settings, doctype)
 
 
 def _current_user() -> str:
@@ -45,11 +45,11 @@ def _current_user() -> str:
 
 
 def on_document_save(doc, method=None) -> None:
-    """on_update hook — queue upsert sync job if DocType is whitelisted."""
+    """on_update hook — queue upsert sync job for opt-in legacy vector DocTypes."""
     if doc.doctype in INTERNAL_DOCTYPES:
         return
     settings = _get_settings()
-    if not _is_whitelisted(settings, doc.doctype):
+    if not _should_enqueue_sync(settings, doc.doctype):
         return
 
     trigger_type = "Create" if doc.is_new() else "Update"
@@ -81,7 +81,7 @@ def on_document_save(doc, method=None) -> None:
 
 
 def on_document_rename(doc, old_name, new_name, merge=False) -> None:
-    """after_rename hook — queue rename sync job if DocType is whitelisted.
+    """after_rename hook — queue rename sync job for opt-in legacy vector DocTypes.
 
     Frappe calls this as hook_fn(doc, old_name, new_name, merge=False).
     doc is already in its new-name state; old_name and new_name are positional args.
@@ -89,7 +89,7 @@ def on_document_rename(doc, old_name, new_name, merge=False) -> None:
     if doc.doctype in INTERNAL_DOCTYPES:
         return
     settings = _get_settings()
-    if not _is_whitelisted(settings, doc.doctype):
+    if not _should_enqueue_sync(settings, doc.doctype):
         return
 
     log = frappe.get_doc({
@@ -120,11 +120,11 @@ def on_document_rename(doc, old_name, new_name, merge=False) -> None:
 
 
 def on_document_trash(doc, method=None) -> None:
-    """on_trash hook — queue delete sync job if DocType is whitelisted."""
+    """on_trash hook — queue delete sync job for opt-in legacy vector DocTypes."""
     if doc.doctype in INTERNAL_DOCTYPES:
         return
     settings = _get_settings()
-    if not _is_whitelisted(settings, doc.doctype):
+    if not _should_enqueue_sync(settings, doc.doctype):
         return
 
     log = frappe.get_doc({

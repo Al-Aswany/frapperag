@@ -1,3 +1,5 @@
+from frapperag.rag.legacy_vector_policy import LEGACY_VECTOR_DOCTYPES
+
 app_name      = "frapperag"
 app_title     = "FrappeRAG"
 app_publisher = "Mahmoud Hussein"
@@ -29,11 +31,12 @@ scheduler_events = {
 }
 
 doc_events = {
-    "*": {
-        "on_update":    "frapperag.rag.sync_hooks.on_document_save",
+    doctype: {
+        "on_update": "frapperag.rag.sync_hooks.on_document_save",
         "after_rename": "frapperag.rag.sync_hooks.on_document_rename",
-        "on_trash":     "frapperag.rag.sync_hooks.on_document_trash",
+        "on_trash": "frapperag.rag.sync_hooks.on_document_trash",
     }
+    for doctype in LEGACY_VECTOR_DOCTYPES
 }
 
 permission_query_conditions = {

@@ -1,19 +1,23 @@
 frappe.pages["rag-admin"].on_page_load = function (wrapper) {
 	var page = frappe.ui.make_app_page({
 		parent: wrapper,
-		title: "RAG Index Manager",
+		title: "Legacy Vector Index Manager",
 		single_column: true,
 	});
 
 	$(`
 		<div class="rag-admin-form" style="padding: 20px;">
+			<p class="text-muted" style="max-width:720px; margin-bottom:16px;">
+				Legacy vector indexing is for manual compatibility maintenance and v1 fallback support.
+				Live ERP querying remains the primary structured-data path.
+			</p>
 			<div class="form-group">
-				<label>Document Type</label>
+				<label>Legacy Manual Indexing DocType</label>
 				<select id="rag-doctype-select" class="form-control" style="max-width:300px;">
 					<option value="">-- select --</option>
 				</select>
 			</div>
-			<button id="rag-trigger-btn" class="btn btn-primary">Start Indexing</button>
+			<button id="rag-trigger-btn" class="btn btn-primary">Start Legacy Indexing</button>
 
 			<div id="rag-job-status" style="margin-top:20px; display:none;">
 				<p><strong>Job:</strong> <span id="rag-job-id"></span></p>
@@ -31,16 +35,13 @@ frappe.pages["rag-admin"].on_page_load = function (wrapper) {
 		</div>
 	`).appendTo(page.main);
 
-	// Load allowed DocTypes from AI Assistant Settings
+	// Load backend-filtered legacy/manual indexing targets.
 	frappe.call({
-		method: "frappe.client.get",
-		args: { doctype: "AI Assistant Settings" },
+		method: "frapperag.api.indexer.get_manual_indexing_targets_snapshot",
 		callback: function (r) {
 			if (!r.message) return;
-			var allowed = (r.message.allowed_doctypes || []).map(function (d) {
-				return d.doctype_name;
-			});
-			allowed.forEach(function (dt) {
+			var targets = r.message.targets || [];
+			targets.forEach(function (dt) {
 				$("#rag-doctype-select").append(
 					$("<option>").val(dt).text(dt)
 				);
@@ -54,7 +55,7 @@ frappe.pages["rag-admin"].on_page_load = function (wrapper) {
 	$("#rag-trigger-btn").on("click", function () {
 		var doctype = $("#rag-doctype-select").val();
 		if (!doctype) {
-			frappe.msgprint("Please select a document type.");
+			frappe.msgprint("Please select a legacy manual indexing DocType.");
 			return;
 		}
 
@@ -68,11 +69,11 @@ frappe.pages["rag-admin"].on_page_load = function (wrapper) {
 				$("#rag-job-id").text(current_job_id);
 				$("#rag-status").text(r.message.status);
 				$("#rag-job-status").show();
-				$("#rag-trigger-btn").prop("disabled", false).text("Start Indexing");
+				$("#rag-trigger-btn").prop("disabled", false).text("Start Legacy Indexing");
 				subscribe_to_progress();
 			},
 			error: function () {
-				$("#rag-trigger-btn").prop("disabled", false).text("Start Indexing");
+				$("#rag-trigger-btn").prop("disabled", false).text("Start Legacy Indexing");
 			},
 		});
 	});
@@ -95,7 +96,7 @@ frappe.pages["rag-admin"].on_page_load = function (wrapper) {
 			if (data.job_id !== current_job_id) return;
 			update_ui(data);
 			frappe.msgprint({
-				message: data.error || "Indexing failed.",
+				message: data.error || "Legacy indexing failed.",
 				indicator: "red",
 			});
 			frappe.realtime.off("rag_index_progress");
@@ -135,7 +136,7 @@ frappe.pages["rag-admin"].on_page_load = function (wrapper) {
 				}).join("");
 
 				$("#rag-job-list").html(
-					"<h5>Recent Jobs</h5>" +
+					"<h5>Recent Legacy Vector Jobs</h5>" +
 					"<table class='table table-bordered'>" +
 					"<thead><tr>" +
 					"<th>Job ID</th><th>DocType</th><th>Status</th>" +

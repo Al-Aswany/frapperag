@@ -1,5 +1,7 @@
 import frappe
 from frappe.utils import now_datetime, add_to_date
+
+from frapperag.rag.legacy_vector_policy import get_manual_indexing_targets, get_policy_only_doctypes
 from frapperag.rag.indexer import DocIndexerTool
 
 
@@ -77,9 +79,32 @@ def _require_rag_admin():
         )
 
 
+def _get_manual_indexing_target_snapshot(settings=None) -> dict:
+    resolved_settings = settings or frappe.get_cached_doc("AI Assistant Settings", "AI Assistant Settings")
+    targets = get_manual_indexing_targets(resolved_settings)
+    policy_only = get_policy_only_doctypes(resolved_settings)
+    configured = [
+        row.doctype_name
+        for row in (getattr(resolved_settings, "allowed_doctypes", None) or [])
+        if getattr(row, "doctype_name", None)
+    ]
+    return {
+        "targets": targets,
+        "policy_only": policy_only,
+        "configured": configured,
+    }
+
+
+@frappe.whitelist()
+def get_manual_indexing_targets_snapshot() -> dict:
+    """Return current legacy/manual indexing targets for admin UI surfaces."""
+    _require_rag_admin()
+    return _get_manual_indexing_target_snapshot()
+
+
 @frappe.whitelist()
 def trigger_full_index() -> dict:
-    """Enqueue a background indexing job for every allowed DocType.
+    """Enqueue a background indexing job for every legacy/manual DocType target.
 
     DocTypes that already have a Queued or Running job are skipped (not an error).
     Returns a summary of queued and skipped DocTypes.
@@ -94,14 +119,18 @@ def trigger_full_index() -> dict:
             frappe.ValidationError,
         )
 
-    allowed = [r.doctype_name for r in (settings.allowed_doctypes or [])]
-    if not allowed:
-        frappe.throw("No allowed DocTypes configured.", frappe.ValidationError)
+    snapshot = _get_manual_indexing_target_snapshot(settings)
+    targets = snapshot["targets"]
+    if not targets:
+        frappe.throw(
+            "No legacy manual indexing DocTypes are configured.",
+            frappe.ValidationError,
+        )
 
     queued = []
     skipped = []
 
-    for doctype in allowed:
+    for doctype in targets:
         active = frappe.db.exists(
             "AI Indexing Job",
             {"doctype_to_index": doctype, "status": ["in", ["Queued", "Running"]]},
@@ -112,7 +141,12 @@ def trigger_full_index() -> dict:
         result = tool.execute({"doctype": doctype, "user": frappe.session.user})
         queued.append({"doctype": doctype, "job_id": result["job_id"]})
 
-    return {"queued": queued, "skipped": skipped}
+    return {
+        "queued": queued,
+        "skipped": skipped,
+        "policy_only": snapshot["policy_only"],
+        "targets": targets,
+    }
 
 
 @frappe.whitelist()

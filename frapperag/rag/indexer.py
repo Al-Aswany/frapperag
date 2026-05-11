@@ -9,6 +9,8 @@ import traceback
 import frappe
 from frappe.utils import now_datetime, add_to_date
 
+from frapperag.rag.legacy_vector_policy import get_manual_indexing_targets
+
 
 def _log():
     logger = frappe.logger("frapperag", allow_site=True, file_count=5, max_size=250_000)
@@ -62,10 +64,10 @@ class DocIndexerTool(BaseIndexer):
                 frappe.ValidationError,
             )
 
-        allowed = {r.doctype_name for r in settings.allowed_doctypes}
-        if doctype not in allowed:
+        manual_targets = set(get_manual_indexing_targets(settings))
+        if doctype not in manual_targets:
             frappe.throw(
-                f"Document type '{doctype}' is not in the allowed list.",
+                f"Document type '{doctype}' is not configured for legacy manual indexing.",
                 frappe.ValidationError,
             )
 

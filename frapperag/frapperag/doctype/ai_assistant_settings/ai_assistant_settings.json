@@ -11,6 +11,7 @@
   "chat_model",
   "enable_chat_google_search",
   "sync_schedule",
+  "enable_transactional_vector_sync",
   "section_doctypes",
   "allowed_doctypes",
   "section_roles",
@@ -74,18 +75,25 @@
   {
    "fieldname": "sync_schedule",
    "fieldtype": "Select",
-   "label": "Sync Schedule Preference",
+   "label": "Legacy Sync Schedule Preference",
    "options": "Manual Only\nDaily\nWeekly"
+  },
+  {
+   "default": "0",
+   "description": "Disabled by default. Live ERP querying is the primary structured-data path. When off, normal ERP transactional record saves do not enqueue legacy vector sync jobs. Legacy manual indexing remains available for v1 compatibility.",
+   "fieldname": "enable_transactional_vector_sync",
+   "fieldtype": "Check",
+   "label": "Enable Legacy Transactional Vector Sync"
   },
   {
    "fieldname": "section_doctypes",
    "fieldtype": "Section Break",
-   "label": "Allowed Document Types"
+   "label": "Allowed ERP DocTypes"
   },
   {
    "fieldname": "allowed_doctypes",
    "fieldtype": "Table",
-   "label": "Allowed Document Types",
+   "label": "Allowed ERP DocTypes",
    "options": "RAG Allowed DocType"
   },
   {
@@ -220,12 +228,12 @@
    "collapsible": 1,
    "fieldname": "section_sync_health",
    "fieldtype": "Section Break",
-   "label": "Sync Health"
+   "label": "Legacy Vector Sync Health"
   },
   {
    "fieldname": "sync_health_html",
    "fieldtype": "HTML",
-   "label": "Sync Health"
+   "label": "Legacy Vector Sync Health"
   }
  ],
  "index_web_pages_for_search": 0,

@@ -4,6 +4,13 @@ TOP_K        = 5
 MAX_DISTANCE = 1.0   # cosine distance ceiling; results above this are irrelevant
 
 
+def _get_settings():
+    try:
+        return frappe.get_cached_doc("AI Assistant Settings", "AI Assistant Settings")
+    except Exception:
+        return None
+
+
 def search_candidates(text: str, api_key: str | None = None) -> list:
     """Embed a query and search the active-prefix LanceDB tables via the RAG sidecar.
 
@@ -16,7 +23,18 @@ def search_candidates(text: str, api_key: str | None = None) -> list:
     """
     from frapperag.rag.sidecar_client import search, SidecarError
 
-    return search(text, top_k=TOP_K, max_distance=MAX_DISTANCE, api_key=api_key)
+    candidates = search(text, top_k=TOP_K, max_distance=MAX_DISTANCE, api_key=api_key)
+    return filter_by_legacy_retrieval_policy(candidates)
+
+
+def filter_by_legacy_retrieval_policy(candidates: list, settings=None) -> list:
+    """Drop vector candidates that are no longer allowed by current legacy policy."""
+    from frapperag.rag.legacy_vector_policy import filter_legacy_vector_candidates
+
+    resolved_settings = settings or _get_settings()
+    if not resolved_settings:
+        return []
+    return filter_legacy_vector_candidates(candidates, resolved_settings)
 
 
 def filter_by_permission(candidates: list, user: str) -> list:

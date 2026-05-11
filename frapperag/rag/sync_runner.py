@@ -1,4 +1,4 @@
-"""Background job functions for incremental vector index sync.
+"""Background job functions for legacy vector sync compatibility flows.
 
 All heavy imports (httpx, Gemini SDK modules, etc.) MUST be inside function
 bodies — never at module level (Constitution Principle I).
@@ -127,7 +127,11 @@ def run_sync_job(
 
 
 def run_purge_job(sync_log_id: str, doctype: str, user: str, **kwargs) -> None:
-    """Worker: drop the entire v4_ LanceDB table for a removed-from-whitelist DocType."""
+    """Deprecated compatibility worker for legacy purge log retries only.
+
+    Phase 6 stops auto-enqueuing purge jobs when allowlist rows are removed.
+    Existing Purge log rows can still be retried through this worker.
+    """
     frappe.set_user(user)
 
     frappe.db.set_value("Sync Event Log", sync_log_id, "outcome", "Running")

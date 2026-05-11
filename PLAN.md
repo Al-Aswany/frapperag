@@ -149,7 +149,7 @@
 4. Phase 4: connect the shadow router and validated live-query path to chat behind `assistant_mode = hybrid` only. Keep `assistant_mode = v1` as the default, preserve the existing v1 answer path in `v1` mode, and fail closed back to v1 for unsupported or rejected hybrid requests.
 5. Phase 4B: harden the approved hybrid path with a repeatable structured-query matrix, debug probes, and tool-log verification while keeping the runtime default at `v1` and the hybrid scope limited to validated read-only `get_list`.
 6. Phase 4C: add the self-serve analytics foundation. Introduce curated analytics building blocks for reusable metrics, dimensions, filters, and saved question definitions so broader analytics can be planned safely without opening raw SQL or write paths.
-7. Phase 5: disable record-level vector indexing by default. Remove transactional DocTypes from default indexing, stop wildcard structured sync hooks, convert long-text indexing to explicit `AI Document Source` policies, and keep only document/attachment ingestion jobs; do not delete legacy v1 files yet.
+7. Phase 5: disable transactional record-level vector sync by default. Keep the transactional DocTypes in assistant policy/manual indexing lists, stop enqueuing structured sync jobs for normal transactional saves unless explicitly re-enabled, preserve document/attachment indexing paths, and do not delete legacy v1 files yet.
 8. Phase 6: clean up old architecture. After migration is complete, retire `rag/text_converter.py` for structured records, narrow or remove `rag/query_executor.py` and `rag/chat_runner.py`, deprecate `Sync Event Log` if unused, evaluate whether sidecar `/chat` can be reduced, and remove superseded v1 components.
 
 ## 11. Acceptance Criteria
@@ -493,6 +493,12 @@ Self-Serve Analytics Foundation implemented as unused/import-safe foundation onl
 
 Phase 5:
 Disable transactional vector sync by default.
+
+Implemented:
+- Added `AI Assistant Settings.enable_transactional_vector_sync` with default `0`.
+- `after_migrate` / seed backfill now forces the setting to disabled unless already set.
+- Transactional save/rename/delete hooks now skip enqueueing structured vector sync jobs when the flag is off.
+- Manual indexing, LanceDB, sidecar health, legacy v1 retrieval, and hybrid live-query analytics remain in place.
 
 Phase 6:
 Clean old files and sidecar endpoints.

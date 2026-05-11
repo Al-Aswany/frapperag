@@ -1,13 +1,14 @@
 # FrappeRAG
 
-A Retrieval-Augmented Generation (RAG) assistant for Frappe / ERPNext. FrappeRAG indexes your business documents into a local vector store and lets users ask natural-language questions that are answered by Google Gemini, grounded in your actual data.
+An AI assistant for Frappe / ERPNext where live ERP querying is the primary structured-data path. FrappeRAG keeps LanceDB-backed vector indexing as a legacy/manual compatibility layer for `assistant_mode = v1` and future document-oriented sources.
 
 ## Features
 
 - **Embedding (default: cloud)** — Google `text-embedding-004` (768-dim) by default. Opt into `multilingual-e5-small` (local, 384-dim, ~470 MB) via AI Assistant Settings → Embedding Provider for full data sovereignty on the embedding path.
-- **Vector store** — LanceDB, stored in a bench-level `rag/` directory; table prefix `v5_gemini_` or `v6_e5small_` depending on the active provider.
-- **Incremental sync** — Frappe `doc_events` hooks (`on_update`, `after_rename`, `on_trash`) automatically keep the vector index in sync with every save, rename, or delete for whitelisted DocTypes.
-- **Bulk indexing** — RAG Index Manager page lets RAG Admins trigger a full re-index of any whitelisted DocType (or all at once), with real-time progress updates via `frappe.realtime`.
+- **Primary structured path** — `assistant_mode = hybrid` uses live ERP reads (`get_list` and approved analytics executors) for structured questions.
+- **Vector store** — LanceDB remains in a bench-level `rag/` directory; table prefix `v5_gemini_` or `v6_e5small_` depending on the active provider.
+- **Legacy incremental sync** — opt-in Frappe `doc_events` hooks can keep legacy vector tables in sync for the supported ERP DocTypes when explicitly enabled.
+- **Legacy/manual bulk indexing** — Legacy Vector Index Manager lets RAG Admins trigger manual compatibility re-indexing for the supported legacy ERP DocTypes, with realtime progress updates via `frappe.realtime`.
 - **Chat interface** — Vanilla JS chat page (`/rag-chat`) backed by a configurable Gemini chat model (default: `gemini-2.5-flash`) with multi-turn conversation history and per-source citations.
 - **Report execution** — Gemini can call whitelisted Report Builder reports as tools; results are rendered as formatted tables inside the chat thread with a 50-row cap.
 - **Query execution** — Predefined SQL templates for common analytics (top selling items, best-selling pairs, low stock, customer/supplier activity, inventory status, pending orders). Gemini selects the right template and passes validated parameters; results are returned as structured citations.
@@ -40,7 +41,7 @@ RAG Sidecar  ── FastAPI + uvicorn ──  LanceDB (bench-level rag/)
   /install_local_model/status/:id GET
 ```
 
-Workers **never** import `lancedb` or `sentence_transformers` directly. All vector and embedding operations are delegated to the sidecar via `frapperag.rag.sidecar_client`.
+Workers **never** import `lancedb` or `sentence_transformers` directly. All vector and embedding operations are delegated to the sidecar via `frapperag.rag.sidecar_client`. The sidecar and LanceDB remain in place for legacy/manual vector compatibility and future document-oriented sources.
 
 The sidecar client includes built-in retry logic (max 3 attempts with exponential backoff) for transient errors (connect failures, timeouts, HTTP 429/502/503).
 
@@ -63,7 +64,7 @@ apps/frapperag/frapperag/
 ├── frapperag/doctype/
 │   ├── ai_assistant_settings/      # Single DocType — API key, whitelist, roles, sidecar port
 │   ├── ai_tool_call_log/           # Audit log for Phase 3 planner / validator / executor activity
-│   ├── rag_allowed_doctype/        # Child table — whitelisted DocTypes
+│   ├── rag_allowed_doctype/        # Child table — allowed ERP DocTypes / live-query policy rows
 │   ├── rag_allowed_role/           # Child table — roles allowed to chat
 │   ├── rag_allowed_report/         # Child table — whitelisted Report Builder reports
 │   ├── rag_aggregate_field/        # Child table — custom aggregation fields for query executor
@@ -76,21 +77,21 @@ apps/frapperag/frapperag/
 │   ├── base_indexer.py             # BaseIndexer ABC (validate → check_permission → execute)
 │   ├── sidecar_client.py           # httpx wrappers for every sidecar endpoint (with retry logic)
 │   ├── text_converter.py           # DocType → deterministic human-readable text (11 ERPNext DocTypes)
-│   ├── indexer.py                  # DocIndexerTool + run_indexing_job() + mark_stalled_jobs()
-│   ├── retriever.py                # search_candidates() + filter_by_permission()
+│   ├── indexer.py                  # Legacy/manual DocIndexerTool + run_indexing_job() + mark_stalled_jobs()
+│   ├── retriever.py                # Legacy v1 vector retrieval + permission filtering
 │   ├── prompt_builder.py           # build_messages() + build_tool_definitions() → Gemini tool list
 │   ├── chat_engine.py              # generate_response() via sidecar /chat (supports function calling)
 │   ├── chat_runner.py              # run_chat_job() + tool_call dispatch (reports + queries)
 │   ├── report_executor.py          # execute_report() — 3-layer permission check + Report Builder execution
 │   ├── query_executor.py           # SQL templates for analytics (top sellers, stock, pairs, etc.)
 │   ├── health.py                   # Periodic sidecar health check → RAG System Health DocType
-│   ├── sync_hooks.py               # on_document_save/rename/trash doc_events handlers
-│   └── sync_runner.py              # run_sync_job() + run_purge_job() + mark_stalled_sync_jobs() + prune_sync_event_log()
+│   ├── sync_hooks.py               # opt-in legacy vector doc_events handlers
+│   └── sync_runner.py              # legacy sync compatibility workers + scheduler sweepers
 ├── api/
 │   ├── indexer.py                  # trigger_indexing, trigger_full_index, get_job_status, list_jobs, get_sync_health, sidecar_health, retry_sync
 │   └── chat.py                     # create_session, send_message, list_sessions, get_messages, get_message_status, archive_session
 └── frapperag/page/
-    ├── rag_admin/                  # RAG Index Manager — bulk indexing + sync health dashboard
+    ├── rag_admin/                  # Legacy Vector Index Manager — manual indexing + legacy sync health
     └── rag_chat/                   # Chat UI — session list, message thread, real-time streaming
 ```
 
@@ -132,19 +133,39 @@ bench --site <site> migrate
 1. Creates the bench-level `rag/` directory for LanceDB data.
 2. Appends a `rag_sidecar:` entry to the bench `Procfile`.
 
-`after_migrate` idempotently seeds the default 11 allowed DocTypes into AI Assistant Settings.
+`after_migrate` idempotently seeds the default 11 allowed ERP DocTypes into AI Assistant Settings and backfills `Enable Legacy Transactional Vector Sync = 0` unless it has already been set.
 
 ## Configuration
 
 1. Open **AI Assistant Settings** in Frappe Desk (System Manager or RAG Admin).
 2. Enter your **Gemini API Key**.
-3. Add the DocTypes you want indexed to **Allowed Document Types** (11 supported — see Supported DocTypes below). Defaults are seeded automatically on install/migrate.
+3. Add the DocTypes you want exposed to the assistant in **Allowed ERP DocTypes**. Defaults are seeded automatically on install/migrate for the current 11 supported legacy ERP vector DocTypes and are also used by hybrid live querying and analytics policy.
 4. Add the roles that may use the chat to **Allowed Roles** (default: `RAG User`).
 5. Optionally whitelist **Report Builder** reports in **Allowed Reports** (see Report Execution below).
 6. Optionally configure **Aggregate Fields** for custom query analytics (see Query Execution below).
 7. Optionally change **Chat Model**. Leave the default `gemini-2.5-flash` for stable v1 behavior, or set `gemini-3-flash-preview` / `gemini-3.1-flash-lite-preview` for manual runtime testing.
 8. Optionally enable **Google Search Grounding**. It is disabled by default and is reserved for future routed intents such as `out_of_scope`, `erpnext_help`, or explicit current-info/web questions.
-9. Optionally adjust **Sidecar Port** (default: `8100`).
+9. Leave **Enable Legacy Transactional Vector Sync** off unless you explicitly want legacy per-record vector sync on normal ERP saves for v1 compatibility maintenance.
+10. Optionally adjust **Sidecar Port** (default: `8100`).
+
+## Phase 5 Structured Data Default
+
+Phase 5 changes the structured-data default only. Transactional ERP records are no longer treated as the default vector/RAG source.
+
+- `assistant_mode = hybrid` uses live ERP reads (`get_list` and approved analytics executors) as the main structured-data path.
+- `assistant_mode = v1` still uses the legacy v1 path and can continue to retrieve already-indexed vectors.
+- Transactional vector indexing remains available for manual reindexing or legacy/admin needs.
+- Document, attachment, and future long-text indexing remain separate from this toggle and are not removed here.
+
+## Phase 6 Legacy Vector Boundary Cleanup
+
+Phase 6 keeps LanceDB, the sidecar, the `v1` path, and manual indexing intact, but narrows the old record-level vector architecture so it is clearly legacy/manual rather than the primary structured-data path.
+
+- Live ERP querying remains primary for structured data.
+- Legacy vector sync is scoped to the fixed supported ERP DocTypes and stays disabled by default.
+- Legacy/manual indexing only targets the supported legacy ERP DocTypes that are still present in **Allowed ERP DocTypes**.
+- Existing vectors are not purged automatically when policy rows are removed; retrieval and admin surfaces stop using disallowed targets instead.
+- Phase 6 does not add file/image support, LLM Wiki, Text-to-SQL, write actions, or WhatsApp.
 
 ## Phase 2.5 Runtime Upgrade
 
@@ -357,11 +378,13 @@ The sidecar loads the configured embedding provider on startup. With the default
 
 ### Bulk indexing
 
-Navigate to **RAG Index Manager** (`/rag-admin`) in Frappe Desk, select a DocType, and click **Start Indexing**. Progress is streamed via `frappe.realtime`. Only one active job per DocType is allowed at a time.
+Navigate to **Legacy Vector Index Manager** (`/rag-admin`) in Frappe Desk, select a DocType, and click **Start Legacy Indexing**. Progress is streamed via `frappe.realtime`. Only one active job per DocType is allowed at a time. This path remains available for manual/legacy reindexing even when transactional auto-sync is disabled.
 
 ### Incremental sync
 
-Every save, rename, or delete on a whitelisted DocType automatically queues a lightweight `short`-queue job that upserts or removes the single record's vector. The `Sync Event Log` DocType records the outcome of every sync attempt. RAG Admins can inspect and retry failures from the **Sync Health** section in **AI Assistant Settings**.
+Legacy transactional vector sync is disabled by default. When **Enable Legacy Transactional Vector Sync** is off, normal saves, renames, and deletes on the supported ERP transactional DocTypes do not enqueue per-record vector sync jobs. Existing vectors are left in place; no automatic purge runs in Phase 6.
+
+If you explicitly enable **Enable Legacy Transactional Vector Sync**, the legacy per-record `short`-queue upsert/delete flow resumes for the supported transactional DocTypes. The `Sync Event Log` DocType continues to record sync outcomes for enabled/manual flows, and RAG Admins can inspect and retry failures from the **Legacy Vector Sync Health** section in **AI Assistant Settings**.
 
 ### Scheduler tasks
 
@@ -393,10 +416,11 @@ All endpoints require authentication via Frappe session or API key.
 
 | Method | Description |
 |---|---|
-| `trigger_indexing(doctype)` | Enqueue a bulk indexing job; returns `{job_id, status}` |
-| `trigger_full_index()` | Enqueue jobs for all allowed DocTypes (skips those with an active job) |
+| `trigger_indexing(doctype)` | Enqueue a legacy/manual bulk indexing job; returns `{job_id, status}` |
+| `trigger_full_index()` | Enqueue jobs for all legacy/manual indexing targets (skips those with an active job) |
 | `get_job_status(job_id)` | Return current progress and counters for a job |
 | `list_jobs(limit, page)` | Paginated list of AI Indexing Jobs |
+| `get_manual_indexing_targets_snapshot()` | Return backend-filtered legacy/manual indexing targets for admin surfaces |
 | `get_sync_health()` | Per-DocType success/failure counts (last 24 h) + failed entries list |
 | `sidecar_health()` | Check sidecar liveness; returns status and response time |
 | `retry_sync(sync_log_id)` | Re-queue a failed sync log entry |
@@ -431,7 +455,7 @@ The sidecar runs on `localhost` only and is not exposed to the internet.
 
 ## Supported DocTypes
 
-FrappeRAG converts the following 11 ERPNext DocTypes to text for indexing:
+FrappeRAG currently converts the following 11 ERPNext DocTypes to text for legacy/manual indexing and `v1` compatibility:
 
 | DocType | Key fields indexed |
 |---|---|

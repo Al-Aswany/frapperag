@@ -4,7 +4,7 @@
 
 frappe.ui.form.on("AI Assistant Settings", {
     refresh(frm) {
-        frm.add_custom_button(__("Index All"), () => _trigger_full_index(frm), __("Actions"));
+        frm.add_custom_button(__("Legacy Index All"), () => _trigger_full_index(frm), __("Actions"));
         frm.add_custom_button(__("Refresh Schema Catalog"), () => _trigger_schema_refresh(frm), __("Actions"));
         _sync_install_button(frm);
         _render_active_prefix_banner(frm);
@@ -46,7 +46,7 @@ function _render_active_prefix_banner(frm) {
             const { populated_tables, expected_doctypes } = r.message;
             if (populated_tables.length === 0 && expected_doctypes.length > 0) {
                 frm.dashboard.add_indicator(
-                    __("Active embedding prefix is empty — run Index All to populate"),
+                    __("Active embedding prefix is empty — run Legacy Index All to populate legacy vector tables"),
                     "orange"
                 );
             }
@@ -125,7 +125,7 @@ function _subscribe_install_progress(job_id, dlg, frm) {
             frappe.realtime.off("rag_local_model_install_progress", handler);
             if (data.ok) {
                 $bar.removeClass("active").addClass("progress-bar-success");
-                $status.html(`<span class="text-success">${__("Install successful — click Save to persist Embedding Provider = e5-small, then restart the sidecar and run Index All.")}</span>`);
+                $status.html(`<span class="text-success">${__("Install successful — click Save to persist Embedding Provider = e5-small, then restart the sidecar and run Legacy Index All.")}</span>`);
                 dlg.set_primary_action(__("Close"), () => dlg.hide());
                 dlg.enable_primary_action();
             } else {
@@ -141,24 +141,27 @@ function _subscribe_install_progress(job_id, dlg, frm) {
 
 function _trigger_full_index(frm) {
     frappe.confirm(
-        __("Queue an indexing job for every allowed DocType? Active jobs will be skipped."),
+        __("Queue legacy indexing jobs for every legacy/manual ERP DocType target? Active jobs will be skipped."),
         () => {
             frappe.call({
                 method: "frapperag.api.indexer.trigger_full_index",
                 freeze: true,
-                freeze_message: __("Queuing indexing jobs…"),
+                freeze_message: __("Queuing legacy indexing jobs…"),
                 callback(r) {
                     if (r.exc) return;
-                    const { queued = [], skipped = [] } = r.message;
+                    const { queued = [], skipped = [], policy_only = [] } = r.message;
                     const lines = [];
                     if (queued.length) {
-                        lines.push(`<b>Queued (${queued.length}):</b> ${queued.map(j => frappe.utils.escape_html(j.doctype)).join(", ")}`);
+                        lines.push(`<b>Queued legacy/manual targets (${queued.length}):</b> ${queued.map(j => frappe.utils.escape_html(j.doctype)).join(", ")}`);
                     }
                     if (skipped.length) {
-                        lines.push(`<b>Skipped — already active (${skipped.length}):</b> ${skipped.map(d => frappe.utils.escape_html(d)).join(", ")}`);
+                        lines.push(`<b>Skipped active legacy jobs (${skipped.length}):</b> ${skipped.map(d => frappe.utils.escape_html(d)).join(", ")}`);
+                    }
+                    if (policy_only.length) {
+                        lines.push(`<b>Not legacy/manual indexing targets (${policy_only.length}):</b> ${policy_only.map(d => frappe.utils.escape_html(d)).join(", ")}`);
                     }
                     frappe.msgprint({
-                        title: __("Index All — Result"),
+                        title: __("Legacy Index All — Result"),
                         message: lines.join("<br>") || __("Nothing to queue."),
                         indicator: queued.length ? "green" : "orange",
                     });
@@ -192,14 +195,14 @@ function _render_sync_health(frm) {
     const $field = frm.get_field("sync_health_html");
     if (!$field || !$field.$wrapper) return;
 
-    $field.$wrapper.html("<p class='text-muted'>Loading sync health…</p>");
+    $field.$wrapper.html("<p class='text-muted'>Loading legacy vector sync health…</p>");
 
     frappe.call({
         method: "frapperag.api.indexer.get_sync_health",
         callback(r) {
             if (r.exc || !r.message) {
                 $field.$wrapper.html(
-                    "<p class='text-danger'>Could not load sync health data.</p>"
+                    "<p class='text-danger'>Could not load legacy vector sync health data.</p>"
                 );
                 return;
             }
@@ -207,7 +210,7 @@ function _render_sync_health(frm) {
         },
         error() {
             $field.$wrapper.html(
-                "<p class='text-danger'>Error fetching sync health.</p>"
+                "<p class='text-danger'>Error fetching legacy vector sync health.</p>"
             );
         },
     });
@@ -220,10 +223,10 @@ function _build_health_html(data, frm) {
 
     // Summary table
     if (summary.length === 0) {
-        html += "<p class='text-muted'>No sync activity in the last 24 hours.</p>";
+        html += "<p class='text-muted'>No legacy vector sync activity in the last 24 hours.</p>";
     } else {
         html += `
-        <h6>Last 24 Hours — Per DocType Summary</h6>
+        <h6>Last 24 Hours — Legacy Vector Sync Summary</h6>
         <table class='table table-bordered table-condensed' style='margin-bottom:16px'>
           <thead>
             <tr>
@@ -247,10 +250,10 @@ function _build_health_html(data, frm) {
 
     // Failures list
     if (failures.length === 0) {
-        html += "<p class='text-success'>No failed sync entries.</p>";
+        html += "<p class='text-success'>No failed legacy vector sync entries.</p>";
     } else {
         html += `
-        <h6>Failed Sync Entries (all time, up to 100)</h6>
+        <h6>Failed Legacy Vector Sync Entries (all time, up to 100)</h6>
         <table class='table table-bordered table-condensed'>
           <thead>
             <tr>

@@ -17,7 +17,7 @@ class AIAssistantSettings(Document):
         # T023: non-blocking warning — save proceeds normally
         if not self.allowed_doctypes:
             frappe.msgprint(
-                _("No DocTypes are configured for indexing — chat will return no results."),
+                _("No ERP DocTypes are configured. Live querying, analytics policy, and legacy manual indexing will have no targets."),
                 indicator="orange",
                 alert=True,
             )
@@ -86,7 +86,7 @@ class AIAssistantSettings(Document):
             # AF-001: doctype must be in allowed_doctypes
             if row.doctype_name not in _allowed_doctype_names:
                 frappe.throw(
-                    f"{label}: DocType '{row.doctype_name}' is not in the Allowed Document Types list.",
+                    f"{label}: DocType '{row.doctype_name}' is not in the Allowed ERP DocTypes list.",
                     frappe.ValidationError,
                 )
 
@@ -123,10 +123,8 @@ class AIAssistantSettings(Document):
                     )
 
     def on_update(self):
-        """Detect removed DocTypes and enqueue a purge job for each one (US3 / FR-005).
-        Also handles embedding provider changes."""
+        """Handle embedding-provider changes without purging legacy vector tables."""
         old = self.get_doc_before_save()
-
         # Embedding provider change — rewrite process-manager config and prompt restart
         old_provider = (getattr(old, "embedding_provider", None) if old else None) or "gemini"
         new_provider = self.embedding_provider or "gemini"
@@ -138,35 +136,6 @@ class AIAssistantSettings(Document):
                 "Embedding provider changed to {0}. Two follow-ups required:<br>"
                 "1. Restart the sidecar (<code>bench restart</code> in production, or kill the "
                 "rag_sidecar process under <code>bench start</code>) for the new model to load.<br>"
-                "2. After restart, click <b>Index All</b> to populate <code>{1}*</code> "
+                "2. After restart, click <b>Legacy Index All</b> to populate <code>{1}*</code> "
                 "tables. Until then, chat will return responses without citations."
             ).format(new_provider, target_prefix), indicator="orange")
-
-        old_allowed = {r.doctype_name for r in old.allowed_doctypes} if old else set()
-        new_allowed = {r.doctype_name for r in self.allowed_doctypes}
-
-        removed = old_allowed - new_allowed
-        if not removed:
-            return
-
-        for dt in removed:
-            log = frappe.get_doc({
-                "doctype": "Sync Event Log",
-                "doctype_name": dt,
-                "record_name": "*",
-                "trigger_type": "Purge",
-                "outcome": "Queued",
-            })
-            log.insert(ignore_permissions=True)
-            frappe.db.commit()
-
-            frappe.enqueue(
-                "frapperag.rag.sync_runner.run_purge_job",
-                queue="short",
-                timeout=120,
-                job_name=f"rag_purge_{dt.lower().replace(' ', '_')}",
-                site=frappe.local.site,
-                sync_log_id=log.name,
-                doctype=dt,
-                user=frappe.session.user,
-            )
